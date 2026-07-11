@@ -1,63 +1,65 @@
 # Muhammad Noman — Portfolio
 
-Do files, dono ek saath deploy karni hain:
-- `index.html`  (website)
-- `M_Noman_New__CV.pdf`  (CV — naam bilkul same rakhna, warna CV link kaam nahi karega)
+Two files, deploy both together:
+- `index.html`  (the website)
+- `M_Noman_New__CV.pdf`  (CV — keep the filename EXACTLY the same, or the CV link will break)
 
 ---
 
-## STEP 1 — Password set karo (zaroori)
+## STEP 1 — Set your password (required)
 
-`index.html` kholo kisi bhi text editor mein (Notepad, VS Code, ya GitHub pe hi edit).
-Upar JavaScript mein yeh line dhoondo:
+Open `index.html` in any text editor (Notepad, VS Code, or edit directly on GitHub).
+Near the top of the JavaScript, find this line:
 
     const ADMIN_PASSWORD = "CHANGE_THIS_PASSWORD";
 
-`CHANGE_THIS_PASSWORD` ki jagah apna strong password daalo, jaise:
+Replace `CHANGE_THIS_PASSWORD` with your own strong password, for example:
 
     const ADMIN_PASSWORD = "Mn$Portfolio2026!x";
 
-Save karo.
+Save the file.
 
 ---
 
 ## STEP 2 — GitHub
 
-1. GitHub pe naya repository banao (naam: `portfolio`)
-2. Dono files upload karo: `index.html` + `M_Noman_New__CV.pdf`
-   (dono ek hi repo mein, ek saath)
+1. Create a new repository on GitHub (name it `portfolio`)
+2. Upload both files: `index.html` + `M_Noman_New__CV.pdf`
+   (both in the same repo, together)
 
 ---
 
-## STEP 3 — Vercel deploy
+## STEP 3 — Deploy on Vercel
 
-1. vercel.com pe jao, GitHub se login karo
-2. "Add New Project" -> apna `portfolio` repo select karo
-3. "Deploy" dabao
-4. 30 second mein live -> `tumhara-naam.vercel.app`
-
----
-
-## Edit mode kaise kholein (sirf tum)
-
-Website kholne ke baad, edit mode 2 tarike se aata hai:
-- URL ke aakhir mein `#admin` lagao  ->  jaise `tumhara-naam.vercel.app/#admin`
-- YA apne naam "Muhammad Noman" pe 5 baar tezi se click karo
-
-Phir password box aayega. Password daalo -> Add / Edit / Delete buttons unlock.
-Normal log (jinko link bhejoge) ko yeh buttons kabhi nahi dikhenge — sirf clean portfolio.
+1. Go to vercel.com and log in with GitHub
+2. Click "Add New..." -> "Project"
+3. Select your `portfolio` repo -> Import
+4. Click "Deploy"
+5. In about 30 seconds it goes live -> `your-name.vercel.app`
 
 ---
 
-## ZAROORI NOTE — abhi cloud connect nahi hua
+## How to open edit mode (owner only)
 
-Abhi tumhare add/edit/delete sirf tumhare browser mein temporary chalte hain.
-Doosron ko ya doosri device pe woh changes nahi dikhenge, aur page refresh pe wapas
-demo data aa jayega.
+After opening the website, edit mode can be triggered two ways:
+- Add `#admin` to the end of the URL  ->  e.g. `your-name.vercel.app/#admin`
+- OR click your name "Muhammad Noman" 5 times quickly
 
-Yeh normal hai — asli cloud save (Supabase) abhi baaki hai. Woh add karne ke baad:
-- Tumhare changes cloud pe save honge
-- Sab log, sab device pe dekhenge
-- Tab dobara deploy karna (ek baar)
+A password box will appear. Enter your password -> the Add / Edit / Delete buttons unlock.
+Normal visitors (anyone you send the link to) will never see these buttons — they only
+see the clean portfolio.
 
-Deploy pehle karke process seekh lo — Supabase baad mein aaram se add kar denge.
+---
+
+## IMPORTANT NOTE — cloud is not connected yet
+
+Right now your add/edit/delete actions only work temporarily in your own browser.
+Other people (and other devices) won't see those changes, and refreshing the page
+brings back the demo data.
+
+This is expected — the real cloud saving (Supabase) is still to be added. Once it's set up:
+- Your changes will be saved to the cloud
+- Everyone, on every device, will see them
+- You'll deploy once more (one time)
+
+Deploy now to learn the process — we can add Supabase later.
