@@ -787,14 +787,25 @@
 <div class="overlay" id="colorModal">
   <div class="modal small">
     <h3>Theme colour</h3>
-    <p class="sub">Pick one colour — the whole site adapts to it. Background, text, borders, buttons and hover effects all adjust automatically, in both light and dark mode.</p>
+    <p class="sub">Set the accent, and optionally your own background. Text and borders always adjust to stay readable.</p>
+
     <div class="field">
-      <label for="colorHex">Colour code</label>
+      <label for="colorHex">Accent colour</label>
       <div style="display:flex;gap:10px;align-items:center">
         <input id="colorPick" type="color" style="width:46px;height:42px;padding:2px;border-radius:9px;border:1px solid var(--line);background:var(--surface);cursor:pointer">
         <input id="colorHex" type="text" placeholder="#2563b8" style="flex:1">
       </div>
-      <p class="pw-note" style="margin-top:8px">Type a hex code (like <b>#2563b8</b>) or use the picker. Everything else adjusts automatically.</p>
+      <p class="pw-note" style="margin-top:8px">Buttons, links, hover effects and the rotating word.</p>
+    </div>
+
+    <div class="field">
+      <label for="bgHex">Background colour <span style="font-weight:400;color:var(--ink-faint)">— optional</span></label>
+      <div style="display:flex;gap:10px;align-items:center">
+        <input id="bgPick" type="color" style="width:46px;height:42px;padding:2px;border-radius:9px;border:1px solid var(--line);background:var(--surface);cursor:pointer">
+        <input id="bgHex" type="text" placeholder="auto — derived from accent" style="flex:1">
+        <button class="btn" id="autoBg" style="flex:0 0 auto;width:auto;padding:10px 13px;font-size:12.5px">Auto</button>
+      </div>
+      <p class="pw-note" style="margin-top:8px">Leave blank (or hit <b>Auto</b>) and it's derived from the accent. This is your light-mode background — dark mode gets a matching dark version automatically.</p>
     </div>
     <div class="modal-actions">
       <button class="btn" id="resetColor">Reset default</button>
@@ -1047,63 +1058,86 @@ function isLight(hex){
 }
 
 /* ============================================================
-   ONE COLOUR IN → WHOLE PALETTE OUT
-   Background, text, borders, cards, hover tints, glass nav —
-   everything is derived from the accent so the site always
-   looks coherent, in light mode and dark mode alike.
+   PALETTE GENERATOR
+   Accent drives buttons/links/hover. Background is either the
+   owner's own colour, or derived from the accent. Text, borders
+   and glass always adapt so the site stays readable — in light
+   mode and dark mode alike.
    ============================================================ */
-function applyAccent(hex){
+let customBg = "";   // "" means: derive it from the accent
+
+function applyTheme(){
+  const hex  = accent;
   if(!/^#[0-9a-fA-F]{6}$/.test(hex)) return false;
-  accent=hex;
   const dark = html_.getAttribute('data-theme')==='dark';
-  const S = html_.style;
+  const S    = html_.style;
 
   S.setProperty('--accent', hex);
-  S.setProperty('--accent-rgb', hexToRgb(hex));          // powers hover waves + tints
+  S.setProperty('--accent-rgb', hexToRgb(hex));
   S.setProperty('--accent-hover', shade(hex,-0.18));
 
-  if(dark){
-    // deep, desaturated version of the accent as the page background
-    const bg      = mix(hex,'#05080c', 0.90);
-    const surface = mix(hex,'#0b1118', 0.84);
-    S.setProperty('--bg', bg);
-    S.setProperty('--surface', surface);
-    S.setProperty('--ink',       mix(hex,'#ffffff', 0.88));
-    S.setProperty('--ink-soft',  mix(hex,'#ffffff', 0.60));
-    S.setProperty('--ink-faint', mix(hex,'#ffffff', 0.36));
-    S.setProperty('--line',       mix(hex,'#1b2530', 0.80));
-    S.setProperty('--accent-soft',mix(hex,'#0b1118', 0.72));
-    S.setProperty('--img-bg',     mix(hex,'#121a23', 0.80));
-    S.setProperty('--input-bg',   mix(hex,'#0e151d', 0.82));
-    S.setProperty('--glass',          'rgba('+hexToRgb(surface)+',.5)');
-    S.setProperty('--glass-scrolled', 'rgba('+hexToRgb(surface)+',.72)');
-    S.setProperty('--glass-menu',     'rgba('+hexToRgb(surface)+',.96)');
-    S.setProperty('--glass-border','rgba(255,255,255,.08)');
-    S.setProperty('--glass-shine', 'rgba(255,255,255,.04)');
-    S.setProperty('--shadow','rgba(0,0,0,.35)');
-  }else{
-    // barely-there wash of the accent as the page background
-    const bg = mix(hex,'#ffffff', 0.94);
-    S.setProperty('--bg', bg);
-    S.setProperty('--surface', '#ffffff');
-    S.setProperty('--ink',       mix(hex,'#0b1118', 0.86));
-    S.setProperty('--ink-soft',  mix(hex,'#3d4655', 0.62));
-    S.setProperty('--ink-faint', mix(hex,'#8794a6', 0.55));
-    S.setProperty('--line',       mix(hex,'#ffffff', 0.84));
-    S.setProperty('--accent-soft',mix(hex,'#ffffff', 0.88));
-    S.setProperty('--img-bg',     mix(hex,'#ffffff', 0.90));
-    S.setProperty('--input-bg',   mix(hex,'#ffffff', 0.96));
-    S.setProperty('--glass',          'rgba('+hexToRgb(mix(hex,'#ffffff',0.92))+',.42)');
-    S.setProperty('--glass-scrolled', 'rgba('+hexToRgb(mix(hex,'#ffffff',0.92))+',.58)');
-    S.setProperty('--glass-menu',     'rgba('+hexToRgb(mix(hex,'#ffffff',0.94))+',.94)');
+  // ---- pick the base background ----
+  // light mode: the owner's colour, or a soft wash of the accent
+  const lightBg = (customBg && /^#[0-9a-fA-F]{6}$/.test(customBg))
+                    ? customBg
+                    : mix(hex,'#ffffff',0.94);
+  // dark mode: a deep version of that same background hue
+  const darkBg  = mix(lightBg,'#05080c',0.92);
+
+  const bg      = dark ? darkBg : lightBg;
+  const onLight = isLight(bg);           // decides whether text goes dark or light
+
+  S.setProperty('--bg', bg);
+
+  if(onLight){
+    // dark text on a light background
+    S.setProperty('--surface',   mix(bg,'#ffffff',0.72));
+    S.setProperty('--ink',       mix(hex,'#0b1118',0.86));
+    S.setProperty('--ink-soft',  mix(hex,'#3d4655',0.62));
+    S.setProperty('--ink-faint', mix(hex,'#8794a6',0.55));
+    S.setProperty('--line',      mix(bg,'#0b1118',0.10));
+    S.setProperty('--accent-soft', mix(hex,bg,0.86));
+    S.setProperty('--img-bg',      mix(bg,'#0b1118',0.05));
+    S.setProperty('--input-bg',    mix(bg,'#ffffff',0.55));
+    S.setProperty('--glass',          'rgba('+hexToRgb(mix(bg,'#ffffff',0.55))+',.45)');
+    S.setProperty('--glass-scrolled', 'rgba('+hexToRgb(mix(bg,'#ffffff',0.55))+',.62)');
+    S.setProperty('--glass-menu',     'rgba('+hexToRgb(mix(bg,'#ffffff',0.7))+',.95)');
     S.setProperty('--glass-border','rgba(255,255,255,.55)');
     S.setProperty('--glass-shine', 'rgba(255,255,255,.6)');
     S.setProperty('--shadow','rgba('+hexToRgb(hex)+',.08)');
+  }else{
+    // light text on a dark background
+    S.setProperty('--surface',   mix(bg,'#ffffff',0.07));
+    S.setProperty('--ink',       mix(hex,'#ffffff',0.88));
+    S.setProperty('--ink-soft',  mix(hex,'#ffffff',0.60));
+    S.setProperty('--ink-faint', mix(hex,'#ffffff',0.36));
+    S.setProperty('--line',      mix(bg,'#ffffff',0.12));
+    S.setProperty('--accent-soft', mix(hex,bg,0.72));
+    S.setProperty('--img-bg',      mix(bg,'#ffffff',0.06));
+    S.setProperty('--input-bg',    mix(bg,'#ffffff',0.05));
+    S.setProperty('--glass',          'rgba('+hexToRgb(mix(bg,'#ffffff',0.07))+',.5)');
+    S.setProperty('--glass-scrolled', 'rgba('+hexToRgb(mix(bg,'#ffffff',0.07))+',.72)');
+    S.setProperty('--glass-menu',     'rgba('+hexToRgb(mix(bg,'#ffffff',0.05))+',.96)');
+    S.setProperty('--glass-border','rgba(255,255,255,.08)');
+    S.setProperty('--glass-shine', 'rgba(255,255,255,.04)');
+    S.setProperty('--shadow','rgba(0,0,0,.35)');
   }
   return true;
 }
+
+/* kept for the existing call sites */
+function applyAccent(hex){
+  if(!/^#[0-9a-fA-F]{6}$/.test(hex)) return false;
+  accent=hex;
+  return applyTheme();
+}
+function applyBg(hex){
+  customBg = (hex && /^#[0-9a-fA-F]{6}$/.test(hex)) ? hex : "";
+  return applyTheme();
+}
+
 /* re-derive everything when the visitor flips light/dark */
-function updateAccentSoftForTheme(){ applyAccent(accent); }
+function updateAccentSoftForTheme(){ applyTheme(); }
 const BUILTIN_PHOTO = document.querySelector('.avatar').src; // keep the embedded photo as default
 
 /* hero text (editable, saved to cloud) */
@@ -1147,7 +1181,9 @@ async function loadFromCloud(){
       if(map.hero_text){
         try{ hero={...DEFAULT_HERO, ...JSON.parse(map.hero_text)}; }catch(_){}
       }
-      if(map.accent) applyAccent(map.accent);
+      if(map.accent)    accent   = map.accent;
+      if(map.bg_colour) customBg = map.bg_colour;
+      applyTheme();
     }
     // apply hero photo if custom one exists
     if(heroPhoto){ document.querySelector('.avatar').src=heroPhoto; }
@@ -1713,31 +1749,60 @@ document.getElementById('saveHero').onclick=async()=>{
    ========================================================= */
 const colorModal=document.getElementById('colorModal');
 const colorHex=document.getElementById('colorHex'), colorPick=document.getElementById('colorPick');
+const bgHex=document.getElementById('bgHex'),       bgPick=document.getElementById('bgPick');
+
 document.getElementById('themeColorBtn').onclick=()=>{
   colorHex.value=accent; colorPick.value=accent;
+  bgHex.value = customBg || '';
+  bgPick.value = customBg || getComputedStyle(html_).getPropertyValue('--bg').trim() || '#ffffff';
   colorModal.classList.add('show'); setTimeout(()=>colorHex.focus(),50);
 };
-// live preview while picking
+
+// live preview — accent
 colorPick.oninput=()=>{ colorHex.value=colorPick.value; applyAccent(colorPick.value); };
 colorHex.oninput=()=>{
   let v=colorHex.value.trim(); if(v && v[0]!=='#') v='#'+v;
   if(/^#[0-9a-fA-F]{6}$/.test(v)){ colorPick.value=v; applyAccent(v); }
 };
-document.getElementById('resetColor').onclick=()=>{
-  applyAccent(DEFAULT_ACCENT); colorHex.value=DEFAULT_ACCENT; colorPick.value=DEFAULT_ACCENT;
+
+// live preview — background
+bgPick.oninput=()=>{ bgHex.value=bgPick.value; applyBg(bgPick.value); };
+bgHex.oninput=()=>{
+  let v=bgHex.value.trim();
+  if(!v){ applyBg(''); return; }              // blank = auto
+  if(v[0]!=='#') v='#'+v;
+  if(/^#[0-9a-fA-F]{6}$/.test(v)){ bgPick.value=v; applyBg(v); }
 };
+document.getElementById('autoBg').onclick=()=>{ bgHex.value=''; applyBg(''); };
+
+document.getElementById('resetColor').onclick=()=>{
+  accent=DEFAULT_ACCENT; customBg='';
+  colorHex.value=DEFAULT_ACCENT; colorPick.value=DEFAULT_ACCENT;
+  bgHex.value=''; applyTheme();
+};
+
 document.getElementById('saveColor').onclick=async()=>{
-  let v=colorHex.value.trim(); if(v && v[0]!=='#') v='#'+v;
-  if(!/^#[0-9a-fA-F]{6}$/.test(v)){ colorHex.focus(); colorHex.style.borderColor='#b4402f'; return; }
+  let a=colorHex.value.trim(); if(a && a[0]!=='#') a='#'+a;
+  if(!/^#[0-9a-fA-F]{6}$/.test(a)){ colorHex.focus(); colorHex.style.borderColor='#b4402f'; return; }
   colorHex.style.borderColor='';
+
+  let b=bgHex.value.trim();
+  if(b && b[0]!=='#') b='#'+b;
+  if(b && !/^#[0-9a-fA-F]{6}$/.test(b)){ bgHex.focus(); bgHex.style.borderColor='#b4402f'; return; }
+  bgHex.style.borderColor='';
+
   const btn=document.getElementById('saveColor');btn.disabled=true;const orig=btn.textContent;
   btn.innerHTML='<span class="save-spinner"></span>Saving...';
   try{
-    const {error}=await sb.from('settings').upsert({key:'accent',value:v});
+    const {error}=await sb.from('settings').upsert([
+      {key:'accent',    value:a},
+      {key:'bg_colour', value:b || ''}          // empty string = auto
+    ]);
     if(error)throw error;
-    applyAccent(v);
+    accent=a; customBg=b || '';
+    applyTheme();
     colorModal.classList.remove('show');
-    toast('Theme colour saved ✓');
+    toast('Theme saved ✓');
   }catch(e){console.error(e);toast('Save failed: '+(e.message||'unknown error'));}
   btn.disabled=false;btn.textContent=orig;
 };
