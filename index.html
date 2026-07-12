@@ -250,6 +250,7 @@
   }
   .link-row:hover::before{opacity:1}
   .link-row:hover{padding-left:22px}
+  .link-row{cursor:pointer}
   .link-row .l-main{min-width:0;display:flex;flex-direction:column}
   .link-row h3{font-size:16px;font-weight:500;letter-spacing:-.01em;color:var(--ink);transition:color .3s}
   .link-row:hover h3{color:var(--accent)}
@@ -442,6 +443,8 @@
     <nav id="nav">
       <a data-nav="home">Home</a>
       <a data-nav="design">Design</a>
+      <a data-nav="live">Live Projects</a>
+      <a data-nav="cases">Case Study</a>
       <a data-nav="blog">About</a>
     </nav>
     <button class="menu-btn" id="menuBtn" aria-label="Menu"><span></span><span></span><span></span></button>
@@ -482,6 +485,12 @@
       <p class="lsub">Websites I’ve built that are live now — click to open.</p>
       <div class="link-list" id="linkList"></div>
     </div>
+
+    <div class="links-block">
+      <h2>Case studies</h2>
+      <p class="lsub">Deep dives into how I approached and solved design problems.</p>
+      <div class="link-list" id="caseList"></div>
+    </div>
   </div>
 
   <!-- ============ DESIGN ============ -->
@@ -496,6 +505,26 @@
       <span class="count" id="designCount"></span>
     </div>
     <div class="grid" id="grid"></div>
+  </div>
+
+  <!-- ============ LIVE PROJECTS ============ -->
+  <div class="page" id="page-live">
+    <div class="page-head">
+      <h2>Live Projects</h2>
+      <p>Websites I’ve designed and built that are live right now. Click any one to open it.</p>
+    </div>
+    <hr class="divider">
+    <div class="link-list" id="linkListPage"></div>
+  </div>
+
+  <!-- ============ CASE STUDIES ============ -->
+  <div class="page" id="page-cases">
+    <div class="page-head">
+      <h2>Case Studies</h2>
+      <p>Deep dives into how I approached, researched, and solved real design problems.</p>
+    </div>
+    <hr class="divider">
+    <div class="link-list" id="caseListPage"></div>
   </div>
 
   <!-- ============ BLOG (About) ============ -->
@@ -545,6 +574,22 @@
 </div>
 
 <!-- ===== Live link modal ===== -->
+<!-- ===== Case study modal ===== -->
+<div class="overlay" id="caseModal">
+  <div class="modal">
+    <h3 id="caseModalTitle">Add case study</h3>
+    <p class="sub">A link to a case study. Opens in a new tab when clicked.</p>
+    <div class="field"><label for="cName">Case study name</label>
+      <input id="cName" type="text" placeholder="e.g. Redesigning a garage website"></div>
+    <div class="field"><label for="cUrl">URL</label>
+      <input id="cUrl" type="url" placeholder="https://…"></div>
+    <div class="modal-actions">
+      <button class="btn" id="cancelCase">Cancel</button>
+      <button class="btn primary" id="saveCase">Save</button>
+    </div>
+  </div>
+</div>
+
 <div class="overlay" id="linkModal">
   <div class="modal">
     <h3 id="linkModalTitle">Add live project</h3>
@@ -695,6 +740,7 @@ I’m open to freelance projects and collaborations. If you’re building someth
 /* live state — filled from the cloud on load */
 let projects = [];
 let links = [];
+let cases = [];
 let aboutText = DEFAULT_ABOUT;
 let heroPhoto = ""; // custom uploaded hero photo (falls back to built-in below)
 const BUILTIN_PHOTO = document.querySelector('.avatar').src; // keep the embedded photo as default
@@ -724,13 +770,15 @@ function toast(msg){
    ========================================================= */
 async function loadFromCloud(){
   try{
-    const [p,l,s]=await Promise.all([
+    const [p,l,c,s]=await Promise.all([
       sb.from('projects').select('*').order('created_at',{ascending:false}),
       sb.from('links').select('*').order('created_at',{ascending:true}),
+      sb.from('case_studies').select('*').order('created_at',{ascending:true}),
       sb.from('settings').select('*')
     ]);
     if(!p.error && p.data) projects = p.data.map(r=>({id:r.id,title:r.title,link:r.link||'',image_url:r.image_url||''}));
     if(!l.error && l.data) links = l.data.map(r=>({id:r.id,name:r.name,url:r.url||''}));
+    if(!c.error && c.data) cases = c.data.map(r=>({id:r.id,name:r.name,url:r.url||''}));
     if(!s.error && s.data){
       const map={}; s.data.forEach(r=>map[r.key]=r.value);
       if(map.about) aboutText=map.about;
@@ -745,7 +793,7 @@ async function loadFromCloud(){
     console.error('Cloud load failed:',e);
     toast('Could not load from cloud — check connection');
   }
-  renderHero(); restartRotator(); render(); renderAbout(); renderLinks();
+  renderHero(); restartRotator(); render(); renderAbout(); renderLinks(); renderCases();
 }
 
 /* =========================================================
@@ -766,7 +814,7 @@ function renderHero(){
 /* =========================================================
    PAGE ROUTING (single file, switches like separate pages)
    ========================================================= */
-const PAGES=['home','design','blog'];
+const PAGES=['home','design','live','cases','blog'];
 function showPage(name){
   if(!PAGES.includes(name)) name='home';
   PAGES.forEach(p=>{
@@ -859,31 +907,49 @@ function renderAbout(){ aboutTextEl.innerHTML=fmtAbout(aboutText); }
    LIVE PROJECT LINKS (home bottom)
    ========================================================= */
 const linkList=document.getElementById('linkList');
-function renderLinks(){
-  linkList.innerHTML='';
-  links.forEach(l=>{
+/* generic renderer for link-style rows (live projects + case studies) */
+function renderRows(items, container, kind, addLabel){
+  if(!container) return;
+  container.innerHTML='';
+  items.forEach(l=>{
     const row=document.createElement('div');
     row.className='link-row';
-    const pretty=l.url.replace(/^https?:\/\//,'').replace(/\/$/,'');
+    if(l.url) row.dataset.url=l.url;
+    const pretty=(l.url||'').replace(/^https?:\/\//,'').replace(/\/$/,'');
     row.innerHTML=`
-      <a class="l-main" href="${esc(l.url)}" target="_blank" rel="noopener">
+      <div class="l-main">
         <h3>${esc(l.name)}</h3><span class="l-url">${esc(pretty)}</span>
-      </a>
+      </div>
       <span class="l-arrow"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M7 17L17 7M17 7H8M17 7v9"/></svg></span>
       <div class="link-tools">
         <button class="edit" data-id="${l.id}" title="Edit"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 20h9M16.5 3.5a2.1 2.1 0 0 1 3 3L7 19l-4 1 1-4z"/></svg></button>
         <button class="del" data-id="${l.id}" title="Delete"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M3 6h18M8 6V4h8v2M6 6l1 14h10l1-14"/></svg></button>
       </div>`;
-    linkList.appendChild(row);
+    // WHOLE ROW is clickable — opens the site in a new tab
+    row.addEventListener('click',e=>{
+      if(e.target.closest('.link-tools')) return;   // ignore edit/delete clicks
+      if(row.dataset.url) window.open(row.dataset.url,'_blank','noopener');
+    });
+    container.appendChild(row);
   });
+
   const add=document.createElement('button');
-  add.className='add-row'; add.innerHTML=`<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 5v14M5 12h14"/></svg> Add live project`;
-  add.onclick=()=>openLink();
-  linkList.appendChild(add);
-  linkList.querySelectorAll('.link-tools .edit').forEach(b=>b.onclick=()=>openLink(b.dataset.id));
-  linkList.querySelectorAll('.link-tools .del').forEach(b=>b.onclick=()=>askDelete('link',b.dataset.id));
+  add.className='add-row';
+  add.innerHTML=`<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 5v14M5 12h14"/></svg> ${addLabel}`;
+  add.onclick=()=> kind==='link' ? openLink() : openCase();
+  container.appendChild(add);
+
+  container.querySelectorAll('.link-tools .edit').forEach(b=>b.onclick=(e)=>{
+    e.stopPropagation();
+    kind==='link' ? openLink(b.dataset.id) : openCase(b.dataset.id);
+  });
+  container.querySelectorAll('.link-tools .del').forEach(b=>b.onclick=(e)=>{
+    e.stopPropagation();
+    askDelete(kind, b.dataset.id);
+  });
+
   // cursor-following gradient wave (eased for smooth flow)
-  linkList.querySelectorAll('.link-row').forEach(row=>{
+  container.querySelectorAll('.link-row').forEach(row=>{
     let tx=0,ty=0,cx=0,cy=0,raf=null,inside=false;
     const loop=()=>{
       cx+=(tx-cx)*0.18; cy+=(ty-cy)*0.18;
@@ -904,6 +970,15 @@ function renderLinks(){
     });
     row.addEventListener('mouseleave',()=>{inside=false;});
   });
+}
+
+function renderLinks(){
+  renderRows(links, document.getElementById('linkList'),     'link', 'Add live project');
+  renderRows(links, document.getElementById('linkListPage'), 'link', 'Add live project');
+}
+function renderCases(){
+  renderRows(cases, document.getElementById('caseList'),     'case', 'Add case study');
+  renderRows(cases, document.getElementById('caseListPage'), 'case', 'Add case study');
 }
 
 /* =========================================================
@@ -1174,6 +1249,43 @@ document.getElementById('saveLink').onclick=async()=>{
 };
 
 /* =========================================================
+   CASE STUDY MODAL
+   ========================================================= */
+const caseModal=document.getElementById('caseModal');
+const cName=document.getElementById('cName'),cUrl=document.getElementById('cUrl');
+let editingCaseId=null;
+function openCase(id){
+  editingCaseId=id||null;
+  if(id){const c=cases.find(x=>String(x.id)===String(id));
+    document.getElementById('caseModalTitle').textContent='Edit case study';
+    cName.value=c.name;cUrl.value=c.url||'';
+  }else{document.getElementById('caseModalTitle').textContent='Add case study';cName.value='';cUrl.value='';}
+  caseModal.classList.add('show');setTimeout(()=>cName.focus(),50);
+}
+document.getElementById('cancelCase').onclick=()=>caseModal.classList.remove('show');
+document.getElementById('saveCase').onclick=async()=>{
+  const name=cName.value.trim();let url=cUrl.value.trim();
+  if(!name){cName.focus();cName.style.borderColor='#b4402f';return;}
+  cName.style.borderColor='';
+  if(url && !/^https?:\/\//.test(url)) url='https://'+url;
+  const btn=document.getElementById('saveCase');btn.disabled=true;const orig=btn.textContent;
+  btn.innerHTML='<span class="save-spinner"></span>Saving...';
+  try{
+    if(editingCaseId){
+      const {error}=await sb.from('case_studies').update({name,url}).eq('id',editingCaseId);
+      if(error)throw error;
+      Object.assign(cases.find(x=>String(x.id)===String(editingCaseId)),{name,url});
+    }else{
+      const {data,error}=await sb.from('case_studies').insert({name,url}).select().single();
+      if(error)throw error;
+      cases.push({id:data.id,name:data.name,url:data.url||''});
+    }
+    caseModal.classList.remove('show');renderCases();toast('Saved to cloud ✓');
+  }catch(e){console.error(e);toast('Save failed: '+(e.message||e.error_description||'unknown error'));}
+  btn.disabled=false;btn.textContent=orig;
+};
+
+/* =========================================================
    ABOUT EDIT MODAL
    ========================================================= */
 const aboutModal=document.getElementById('aboutModal');
@@ -1237,8 +1349,9 @@ const delModal=document.getElementById('delModal');let delType='project',delId=n
 function askDelete(type,id){
   delType=type;delId=id;
   let item;
-  if(type==='project')item=projects.find(x=>String(x.id)===String(id));
-  else item=links.find(x=>String(x.id)===String(id));
+  if(type==='project')     item=projects.find(x=>String(x.id)===String(id));
+  else if(type==='case')   item=cases.find(x=>String(x.id)===String(id));
+  else                     item=links.find(x=>String(x.id)===String(id));
   const label=item ? (type==='project'?item.title:item.name) : 'This item';
   document.getElementById('delText').textContent=`“${label}” will be removed from your live site. This can’t be undone.`;
   delModal.classList.add('show');
@@ -1251,6 +1364,10 @@ document.getElementById('confirmDel').onclick=async()=>{
       const {error}=await sb.from('projects').delete().eq('id',delId);
       if(error)throw error;
       projects=projects.filter(x=>String(x.id)!==String(delId));render();
+    }else if(delType==='case'){
+      const {error}=await sb.from('case_studies').delete().eq('id',delId);
+      if(error)throw error;
+      cases=cases.filter(x=>String(x.id)!==String(delId));renderCases();
     }else{
       const {error}=await sb.from('links').delete().eq('id',delId);
       if(error)throw error;
