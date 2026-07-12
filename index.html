@@ -83,6 +83,14 @@
     width:80px;height:80px;border-radius:50%;object-fit:cover;object-position:center top;
     border:1px solid var(--line);margin-bottom:26px;background:#eeeef6;display:block;
   }
+  .avatar-wrap{position:relative;display:inline-block;margin-bottom:26px}
+  .avatar-wrap .avatar{margin-bottom:0}
+  .avatar-edit{
+    position:absolute;inset:0;border-radius:50%;display:none;align-items:center;justify-content:center;
+    background:rgba(22,32,46,.55);color:#fff;font-size:10.5px;font-weight:600;cursor:pointer;text-align:center;line-height:1.2;
+  }
+  body.is-admin .avatar-wrap .avatar-edit{display:flex}
+  .avatar-wrap:hover .avatar-edit{background:rgba(22,32,46,.72)}
   h1{
     font-family:'Fraunces',serif;font-weight:500;
     font-size:clamp(29px,5vw,42px);line-height:1.14;letter-spacing:-.02em;
@@ -325,6 +333,39 @@
 
   @media (prefers-reduced-motion:reduce){*{animation:none!important;transition:none!important}html{scroll-behavior:auto}}
 
+  /* ---------- crop modal ---------- */
+  .crop-stage{
+    position:relative;width:100%;height:300px;background:#0d1117;border-radius:12px;
+    overflow:hidden;touch-action:none;cursor:move;user-select:none;
+  }
+  .crop-stage img{position:absolute;top:0;left:0;transform-origin:0 0;pointer-events:none;max-width:none}
+  .crop-frame{
+    position:absolute;inset:0;pointer-events:none;
+    box-shadow:0 0 0 9999px rgba(13,17,23,.6);
+  }
+  .crop-frame::after{content:"";position:absolute;inset:0;border:2px solid rgba(255,255,255,.85)}
+  .crop-controls{display:flex;align-items:center;gap:12px;margin-top:14px}
+  .crop-controls label{font-size:12.5px;color:var(--ink-soft);white-space:nowrap}
+  .crop-controls input[type=range]{flex:1;accent-color:var(--accent)}
+  .crop-mode{display:flex;gap:8px;margin-bottom:14px}
+  .crop-mode button{
+    flex:1;padding:9px;border-radius:9px;border:1px solid var(--line);background:#fff;
+    color:var(--ink-soft);font-size:13px;font-weight:500;cursor:pointer;font-family:inherit;transition:.15s;
+  }
+  .crop-mode button.active{background:var(--accent);color:#fff;border-color:var(--accent)}
+  .crop-hint{font-size:11.5px;color:var(--ink-faint);margin-top:8px;text-align:center}
+  .upload-status{font-size:12.5px;color:var(--accent);margin-top:8px;display:none}
+  .upload-status.show{display:block}
+  .save-spinner{display:inline-block;width:13px;height:13px;border:2px solid rgba(255,255,255,.4);border-top-color:#fff;border-radius:50%;animation:spin .6s linear infinite;vertical-align:-2px;margin-right:6px}
+  @keyframes spin{to{transform:rotate(360deg)}}
+  .cloud-banner{
+    position:fixed;bottom:18px;left:50%;transform:translateX(-50%);
+    background:var(--ink);color:#fff;padding:10px 18px;border-radius:10px;font-size:13px;
+    box-shadow:0 8px 30px rgba(0,0,0,.25);z-index:200;opacity:0;transition:opacity .3s;pointer-events:none;
+    max-width:90vw;text-align:center;
+  }
+  .cloud-banner.show{opacity:1}
+
   /* ================= RESPONSIVE ================= */
   @media(max-width:720px){
     body{padding:0 16px}
@@ -372,6 +413,7 @@
     .card .cap{opacity:1;transform:none;padding:22px 12px 10px}
   }
 </style>
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
 </head>
 <body>
 
@@ -506,6 +548,31 @@
   </div>
 </div>
 
+<!-- ===== Crop modal ===== -->
+<div class="overlay" id="cropModal">
+  <div class="modal">
+    <h3>Adjust image</h3>
+    <p class="sub">Choose how the image fits, then save.</p>
+    <div class="crop-mode">
+      <button id="modeCrop" class="active">Crop &amp; zoom</button>
+      <button id="modeFull">Fit full image</button>
+    </div>
+    <div class="crop-stage" id="cropStage">
+      <img id="cropImg" alt="">
+      <div class="crop-frame"></div>
+    </div>
+    <div class="crop-controls" id="zoomControls">
+      <label>Zoom</label>
+      <input type="range" id="zoomRange" min="1" max="3" step="0.01" value="1">
+    </div>
+    <div class="crop-hint" id="cropHint">Drag to move · use slider to zoom</div>
+    <div class="modal-actions">
+      <button class="btn" id="cancelCrop">Cancel</button>
+      <button class="btn primary" id="applyCrop">Use this image</button>
+    </div>
+  </div>
+</div>
+
 <!-- ===== Delete confirm ===== -->
 <div class="overlay" id="delModal">
   <div class="modal small">
@@ -537,27 +604,17 @@
 
 <script>
 /* ============================================================
-   CONFIG — change this one line after you download the file
+   CONFIG — set your password here (keep the quotes)
    ============================================================ */
 const ADMIN_PASSWORD = "8bitthugs";   // <-- apna secret password yahan daalo
 
-/* ---------- demo data (temporary; Supabase later) ---------- */
-let projects = [
-  { id:1, title:"Diva Hair — Salon Website", link:"", image_url:"" },
-  { id:2, title:"BTA Garage — Auto Services", link:"", image_url:"" },
-  { id:3, title:"The Girls Kingdom — School Site", link:"", image_url:"" },
-  { id:4, title:"Brightdeck — SaaS Landing", link:"", image_url:"" },
-];
+/* ---- Supabase (cloud storage) ---- */
+const SUPABASE_URL = "https://hzjjebhngdmnniunspkk.supabase.co";
+const SUPABASE_KEY = "sb_publishable_W3DYlua50VposrsjvUmKUA_VhSCUZcr";
+const sb = window.supabase.createClient(SUPABASE_URL, SUPABASE_KEY);
 
-/* live project links shown at bottom of home (placeholder URLs for now) */
-let links = [
-  { id:1, name:"Diva Hair", url:"https://example.com" },
-  { id:2, name:"BTA Garage", url:"https://example.com" },
-  { id:3, name:"AUTO-ALGARVE", url:"https://example.com" },
-];
-
-/* about-me paragraph (editable). Use **stars** for bold. Blank line = new paragraph. */
-let aboutText =
+/* ---- default content (shown first time before anything is added) ---- */
+const DEFAULT_ABOUT =
 `I’m **Muhammad Noman**, a **UI/UX and Product Designer** with **2+ years of experience** building clean, considered interfaces for web and mobile products.
 
 I design **websites, web apps, mobile apps, landing pages, and SaaS dashboards** — turning ideas into smooth, user-friendly experiences that solve real problems. I think beyond screens: understanding users, refining flows, and making sure **every detail has a purpose**. My focus is always on **clarity, pixel-level detail, and real usability**, not just how things look.
@@ -566,7 +623,48 @@ I currently work as an **Associate UI/UX Designer at Alpha Hive AI**, and previo
 
 I’m open to freelance projects and collaborations. If you’re building something and want a designer who sweats the details, I’d love to hear from you at **nomandesigner55@gmail.com**.`;
 
+/* live state — filled from the cloud on load */
+let projects = [];
+let links = [];
+let aboutText = DEFAULT_ABOUT;
+let heroPhoto = ""; // custom uploaded hero photo (falls back to built-in below)
+const BUILTIN_PHOTO = document.querySelector('.avatar').src; // keep the embedded photo as default
+
 function esc(s){return (s||'').replace(/[&<>"]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]));}
+
+/* small toast */
+function toast(msg){
+  let b=document.getElementById('cloudBanner');
+  if(!b){b=document.createElement('div');b.id='cloudBanner';b.className='cloud-banner';document.body.appendChild(b);}
+  b.textContent=msg;b.classList.add('show');
+  clearTimeout(b._t);b._t=setTimeout(()=>b.classList.remove('show'),2600);
+}
+
+/* =========================================================
+   CLOUD LOAD — pull everything from Supabase on page load
+   ========================================================= */
+async function loadFromCloud(){
+  try{
+    const [p,l,s]=await Promise.all([
+      sb.from('projects').select('*').order('sort_order',{ascending:true}).order('created_at',{ascending:true}),
+      sb.from('links').select('*').order('sort_order',{ascending:true}).order('created_at',{ascending:true}),
+      sb.from('settings').select('*')
+    ]);
+    if(!p.error && p.data) projects = p.data.map(r=>({id:r.id,title:r.title,link:r.link||'',image_url:r.image_url||''}));
+    if(!l.error && l.data) links = l.data.map(r=>({id:r.id,name:r.name,url:r.url||''}));
+    if(!s.error && s.data){
+      const map={}; s.data.forEach(r=>map[r.key]=r.value);
+      if(map.about) aboutText=map.about;
+      if(map.hero_photo) heroPhoto=map.hero_photo;
+    }
+    // apply hero photo if custom one exists
+    if(heroPhoto){ document.querySelector('.avatar').src=heroPhoto; }
+  }catch(e){
+    console.error('Cloud load failed:',e);
+    toast('Could not load from cloud — check connection');
+  }
+  render(); renderAbout(); renderLinks();
+}
 
 /* =========================================================
    PAGE ROUTING (single file, switches like separate pages)
@@ -753,18 +851,142 @@ function openProj(id){
 }
 document.getElementById('cancelProj').onclick=()=>projModal.classList.remove('show');
 thumbPick.onclick=()=>fImage.click();
-fImage.onchange=()=>{const f=fImage.files[0];if(!f)return;const r=new FileReader();r.onload=()=>{pickedImageData=r.result;showThumb(r.result);};r.readAsDataURL(f);};
+fImage.onchange=()=>{const f=fImage.files[0];if(!f)return; openCrop(f); fImage.value='';};
 function showThumb(src){thumbPickText.textContent='Change image';thumbPreview.innerHTML=`<img src="${src}" alt="preview">`;thumbPick.classList.add('has');}
-document.getElementById('saveProj').onclick=()=>{
+document.getElementById('saveProj').onclick=async()=>{
   const title=fTitle.value.trim();
   if(!title){fTitle.focus();fTitle.style.borderColor='#b4402f';return;}
   fTitle.style.borderColor='';
-  const data={title,link:fLink.value.trim(),image_url:pickedImageData};
-  if(editingId)Object.assign(projects.find(x=>x.id===editingId),data);
-  else projects.unshift({id:Date.now(),...data});
-  projModal.classList.remove('show');render();
-  /* Supabase: yahan cloud save/update hoga */
+  const btn=document.getElementById('saveProj');
+  btn.disabled=true; const orig=btn.textContent; btn.innerHTML='<span class="save-spinner"></span>Saving...';
+  try{
+    let imageUrl = pickedImageData;
+    // if a new image was picked (base64), upload it to storage and get a URL
+    if(pickedImageData && pickedImageData.startsWith('data:')){
+      imageUrl = await uploadImage(pickedImageData);
+    }
+    if(editingId){
+      const p=projects.find(x=>x.id===editingId);
+      const {error}=await sb.from('projects').update({title,link:fLink.value.trim(),image_url:imageUrl}).eq('id',editingId);
+      if(error)throw error;
+      Object.assign(p,{title,link:fLink.value.trim(),image_url:imageUrl});
+    }else{
+      const {data,error}=await sb.from('projects').insert({title,link:fLink.value.trim(),image_url:imageUrl,sort_order:Date.now()}).select().single();
+      if(error)throw error;
+      projects.unshift({id:data.id,title:data.title,link:data.link||'',image_url:data.image_url||''});
+    }
+    projModal.classList.remove('show');render();
+    toast('Saved to cloud ✓');
+  }catch(e){console.error(e);toast('Save failed — try again');}
+  btn.disabled=false; btn.textContent=orig;
 };
+
+/* =========================================================
+   CROP TOOL
+   ========================================================= */
+const cropModal=document.getElementById('cropModal');
+const cropStage=document.getElementById('cropStage');
+const cropImg=document.getElementById('cropImg');
+const zoomRange=document.getElementById('zoomRange');
+const zoomControls=document.getElementById('zoomControls');
+const cropHint=document.getElementById('cropHint');
+let cropMode='crop'; // 'crop' | 'full'
+let cImgW=0,cImgH=0,cScale=1,cMinScale=1,cx=0,cy=0,dragging=false,dsx=0,dsy=0;
+const STAGE_W=()=>cropStage.clientWidth, STAGE_H=()=>cropStage.clientHeight;
+
+function openCrop(file){
+  const r=new FileReader();
+  r.onload=()=>{
+    cropImg.onload=()=>{
+      cImgW=cropImg.naturalWidth; cImgH=cropImg.naturalHeight;
+      setCropMode('crop');
+      cropModal.classList.add('show');
+    };
+    cropImg.src=r.result;
+  };
+  r.readAsDataURL(file);
+}
+function setCropMode(m){
+  cropMode=m;
+  document.getElementById('modeCrop').classList.toggle('active',m==='crop');
+  document.getElementById('modeFull').classList.toggle('active',m==='full');
+  if(m==='crop'){
+    zoomControls.style.display='flex'; cropHint.textContent='Drag to move · use slider to zoom';
+    cropStage.style.cursor='move';
+    // cover: scale so image fills stage
+    cMinScale=Math.max(STAGE_W()/cImgW, STAGE_H()/cImgH);
+    cScale=cMinScale; zoomRange.min=cMinScale; zoomRange.max=cMinScale*3; zoomRange.value=cMinScale;
+    cx=(STAGE_W()-cImgW*cScale)/2; cy=(STAGE_H()-cImgH*cScale)/2;
+    applyCropTransform();
+  }else{
+    zoomControls.style.display='none'; cropHint.textContent='The full image will be shown, nothing cut off';
+    cropStage.style.cursor='default';
+    // contain: fit whole image inside stage, centered
+    const s=Math.min(STAGE_W()/cImgW, STAGE_H()/cImgH);
+    cScale=s; cx=(STAGE_W()-cImgW*s)/2; cy=(STAGE_H()-cImgH*s)/2;
+    applyCropTransform();
+  }
+}
+function applyCropTransform(){
+  cropImg.style.width=cImgW+'px'; cropImg.style.height=cImgH+'px';
+  cropImg.style.transform=`translate(${cx}px,${cy}px) scale(${cScale})`;
+}
+function clampPan(){
+  const w=cImgW*cScale,h=cImgH*cScale;
+  if(w>=STAGE_W()){ cx=Math.min(0,Math.max(STAGE_W()-w,cx)); } else { cx=(STAGE_W()-w)/2; }
+  if(h>=STAGE_H()){ cy=Math.min(0,Math.max(STAGE_H()-h,cy)); } else { cy=(STAGE_H()-h)/2; }
+}
+// drag
+cropStage.addEventListener('pointerdown',e=>{if(cropMode!=='crop')return;dragging=true;dsx=e.clientX-cx;dsy=e.clientY-cy;cropStage.setPointerCapture(e.pointerId);});
+cropStage.addEventListener('pointermove',e=>{if(!dragging)return;cx=e.clientX-dsx;cy=e.clientY-dsy;clampPan();applyCropTransform();});
+cropStage.addEventListener('pointerup',()=>dragging=false);
+cropStage.addEventListener('pointercancel',()=>dragging=false);
+// zoom
+zoomRange.addEventListener('input',()=>{
+  const old=cScale; cScale=parseFloat(zoomRange.value);
+  // zoom around center
+  const midx=STAGE_W()/2,midy=STAGE_H()/2;
+  cx=midx-((midx-cx)/old)*cScale; cy=midy-((midy-cy)/old)*cScale;
+  clampPan();applyCropTransform();
+});
+document.getElementById('modeCrop').onclick=()=>setCropMode('crop');
+document.getElementById('modeFull').onclick=()=>setCropMode('full');
+document.getElementById('cancelCrop').onclick=()=>cropModal.classList.remove('show');
+
+document.getElementById('applyCrop').onclick=()=>{
+  // output canvas at 16:11 for crop mode; for full mode keep whole image on 16:11 padded canvas
+  const OUT_W=800, OUT_H=550; // 16:11
+  const canvas=document.createElement('canvas'); canvas.width=OUT_W; canvas.height=OUT_H;
+  const ctx=canvas.getContext('2d');
+  ctx.fillStyle='#eeeef6'; ctx.fillRect(0,0,OUT_W,OUT_H);
+  if(cropMode==='crop'){
+    // map the visible stage area to the output
+    const sx=(-cx)/cScale, sy=(-cy)/cScale;
+    const sw=STAGE_W()/cScale, sh=STAGE_H()/cScale;
+    ctx.drawImage(cropImg, sx,sy,sw,sh, 0,0,OUT_W,OUT_H);
+  }else{
+    // fit whole image centered
+    const s=Math.min(OUT_W/cImgW, OUT_H/cImgH);
+    const w=cImgW*s,h=cImgH*s;
+    ctx.drawImage(cropImg, 0,0,cImgW,cImgH, (OUT_W-w)/2,(OUT_H-h)/2,w,h);
+  }
+  pickedImageData=canvas.toDataURL('image/jpeg',0.85);
+  showThumb(pickedImageData);
+  cropModal.classList.remove('show');
+};
+
+/* =========================================================
+   IMAGE UPLOAD to Supabase Storage
+   ========================================================= */
+async function uploadImage(dataUrl){
+  // convert base64 dataURL to a Blob
+  const res=await fetch(dataUrl); const blob=await res.blob();
+  const name='img_'+Date.now()+'_'+Math.random().toString(36).slice(2,8)+'.jpg';
+  const {error}=await sb.storage.from('images').upload(name, blob, {contentType:'image/jpeg',upsert:false});
+  if(error)throw error;
+  const {data}=sb.storage.from('images').getPublicUrl(name);
+  return data.publicUrl;
+}
 
 /* =========================================================
    LIVE LINK MODAL
@@ -781,16 +1003,25 @@ function openLink(id){
   linkModal.classList.add('show');setTimeout(()=>lName.focus(),50);
 }
 document.getElementById('cancelLink').onclick=()=>linkModal.classList.remove('show');
-document.getElementById('saveLink').onclick=()=>{
+document.getElementById('saveLink').onclick=async()=>{
   const name=lName.value.trim();let url=lUrl.value.trim();
   if(!name){lName.focus();lName.style.borderColor='#b4402f';return;}
   lName.style.borderColor='';
   if(url && !/^https?:\/\//.test(url)) url='https://'+url; // auto-add https
-  const data={name,url};
-  if(editingLinkId)Object.assign(links.find(x=>x.id===editingLinkId),data);
-  else links.push({id:Date.now(),...data});
-  linkModal.classList.remove('show');renderLinks();
-  /* Supabase: yahan cloud save/update hoga */
+  const btn=document.getElementById('saveLink');btn.disabled=true;const orig=btn.textContent;btn.innerHTML='<span class="save-spinner"></span>Saving...';
+  try{
+    if(editingLinkId){
+      const {error}=await sb.from('links').update({name,url}).eq('id',editingLinkId);
+      if(error)throw error;
+      Object.assign(links.find(x=>x.id===editingLinkId),{name,url});
+    }else{
+      const {data,error}=await sb.from('links').insert({name,url,sort_order:Date.now()}).select().single();
+      if(error)throw error;
+      links.push({id:data.id,name:data.name,url:data.url||''});
+    }
+    linkModal.classList.remove('show');renderLinks();toast('Saved to cloud ✓');
+  }catch(e){console.error(e);toast('Save failed — try again');}
+  btn.disabled=false;btn.textContent=orig;
 };
 
 /* =========================================================
@@ -800,9 +1031,15 @@ const aboutModal=document.getElementById('aboutModal');
 const aInput=document.getElementById('aInput');
 document.getElementById('editAbout').onclick=()=>{aInput.value=aboutText;aboutModal.classList.add('show');setTimeout(()=>aInput.focus(),50);};
 document.getElementById('cancelAbout').onclick=()=>aboutModal.classList.remove('show');
-document.getElementById('saveAbout').onclick=()=>{
-  aboutText=aInput.value;aboutModal.classList.remove('show');renderAbout();
-  /* Supabase: yahan cloud save hoga */
+document.getElementById('saveAbout').onclick=async()=>{
+  const val=aInput.value;
+  const btn=document.getElementById('saveAbout');btn.disabled=true;const orig=btn.textContent;btn.innerHTML='<span class="save-spinner"></span>Saving...';
+  try{
+    const {error}=await sb.from('settings').upsert({key:'about',value:val});
+    if(error)throw error;
+    aboutText=val;aboutModal.classList.remove('show');renderAbout();toast('Saved to cloud ✓');
+  }catch(e){console.error(e);toast('Save failed — try again');}
+  btn.disabled=false;btn.textContent=orig;
 };
 
 /* =========================================================
@@ -819,11 +1056,21 @@ function askDelete(type,id){
   delModal.classList.add('show');
 }
 document.getElementById('cancelDel').onclick=()=>delModal.classList.remove('show');
-document.getElementById('confirmDel').onclick=()=>{
-  if(delType==='project'){projects=projects.filter(x=>x.id!==delId);render();}
-  else{links=links.filter(x=>x.id!==delId);renderLinks();}
-  delModal.classList.remove('show');
-  /* Supabase: yahan cloud delete hoga */
+document.getElementById('confirmDel').onclick=async()=>{
+  const btn=document.getElementById('confirmDel');btn.disabled=true;const orig=btn.textContent;btn.innerHTML='<span class="save-spinner"></span>Deleting...';
+  try{
+    if(delType==='project'){
+      const {error}=await sb.from('projects').delete().eq('id',delId);
+      if(error)throw error;
+      projects=projects.filter(x=>x.id!==delId);render();
+    }else{
+      const {error}=await sb.from('links').delete().eq('id',delId);
+      if(error)throw error;
+      links=links.filter(x=>x.id!==delId);renderLinks();
+    }
+    delModal.classList.remove('show');toast('Deleted ✓');
+  }catch(e){console.error(e);toast('Delete failed — try again');}
+  btn.disabled=false;btn.textContent=orig;
 };
 
 /* close overlays on backdrop / escape */
@@ -834,9 +1081,8 @@ document.addEventListener('keydown',e=>{if(e.key==='Escape')document.querySelect
    INIT
    ========================================================= */
 document.getElementById('yr').textContent=new Date().getFullYear();
-render();
-renderAbout();
-renderLinks();
+// load everything from the cloud (renders once data arrives)
+loadFromCloud();
 
 /* ---------- rotating role words (smooth vertical slide, every 2.4s) ---------- */
 (function(){
