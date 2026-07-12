@@ -93,21 +93,41 @@
   }
   @keyframes write{ from{left:0} to{left:100%} }
 
-  /* pen icon rides along with the writing */
+  /* pen rides along with the writing, moving like a real hand */
   .splash-pen{
     position:absolute;top:50%;left:0;z-index:3;
-    color:#16202e;opacity:0;
-    transform:translate(-4px,-58%) rotate(-8deg);
-    animation:penMove 2.1s cubic-bezier(.5,.05,.3,1) .4s forwards;
+    opacity:0;
+    animation:penGlide 2.1s cubic-bezier(.5,.05,.3,1) .4s forwards;
+    will-change:left,opacity;
   }
+  /* inner wrapper does the bobbing + tilting, so it doesn't fight the glide */
   .splash-pen svg{
-    width:clamp(20px,3.4vw,30px);height:clamp(20px,3.4vw,30px);display:block;
+    width:clamp(24px,4vw,38px);height:clamp(24px,4vw,38px);display:block;
+    transform-origin:22% 78%;   /* pivot near the nib, like a real pen */
+    animation:penWrite 2.1s linear .4s forwards;
+    will-change:transform;
   }
-  @keyframes penMove{
-    0%  {left:0;    opacity:0; transform:translate(-4px,-58%) rotate(-8deg)}
-    8%  {opacity:1}
-    88% {opacity:1}
-    100%{left:100%; opacity:0; transform:translate(-4px,-58%) rotate(-8deg)}
+  /* the glide: left→right, fading in and out at the ends */
+  @keyframes penGlide{
+    0%  {left:0;    opacity:0}
+    7%  {opacity:1}
+    90% {opacity:1}
+    100%{left:100%; opacity:0}
+  }
+  /* the hand motion: small dips, lifts and tilts as letters are formed */
+  @keyframes penWrite{
+    0%   {transform:translate(-30%,-72%) rotate(-12deg)}
+    9%   {transform:translate(-30%,-66%) rotate(-6deg)}
+    18%  {transform:translate(-30%,-76%) rotate(-15deg)}
+    27%  {transform:translate(-30%,-64%) rotate(-4deg)}
+    36%  {transform:translate(-30%,-74%) rotate(-13deg)}
+    45%  {transform:translate(-30%,-66%) rotate(-7deg)}
+    54%  {transform:translate(-30%,-77%) rotate(-16deg)}
+    63%  {transform:translate(-30%,-65%) rotate(-5deg)}
+    72%  {transform:translate(-30%,-73%) rotate(-12deg)}
+    81%  {transform:translate(-30%,-67%) rotate(-8deg)}
+    90%  {transform:translate(-30%,-75%) rotate(-14deg)}
+    100% {transform:translate(-30%,-70%) rotate(-10deg)}
   }
 
   /* underline stroke draws itself right after the name */
@@ -556,8 +576,39 @@
       <span class="splash-text">Muhammad Noman</span>
       <span class="splash-mask"></span>
       <span class="splash-pen">
-        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">
-          <path d="M12 19l7-7 3 3-7 7-3-3z"/><path d="M18 13l-1.5-7.5L2 2l3.5 14.5L13 18l5-5z"/><path d="M2 2l7.586 7.586"/><circle cx="11" cy="11" r="2"/>
+        <svg viewBox="0 0 44 44" xmlns="http://www.w3.org/2000/svg">
+          <defs>
+            <linearGradient id="barrel" x1="16" y1="3" x2="33" y2="22" gradientUnits="userSpaceOnUse">
+              <stop offset="0"   stop-color="#6b7a8f"/>
+              <stop offset=".45" stop-color="#2b3542"/>
+              <stop offset="1"   stop-color="#111820"/>
+            </linearGradient>
+            <linearGradient id="shine" x1="18" y1="6" x2="24" y2="14" gradientUnits="userSpaceOnUse">
+              <stop offset="0" stop-color="#ffffff" stop-opacity=".65"/>
+              <stop offset="1" stop-color="#ffffff" stop-opacity="0"/>
+            </linearGradient>
+            <linearGradient id="collar" x1="12" y1="20" x2="20" y2="28" gradientUnits="userSpaceOnUse">
+              <stop offset="0"   stop-color="#e8c469"/>
+              <stop offset=".5"  stop-color="#b8912f"/>
+              <stop offset="1"   stop-color="#8a6c1d"/>
+            </linearGradient>
+            <filter id="penShadow" x="-30%" y="-30%" width="170%" height="170%">
+              <feDropShadow dx="1.2" dy="2" stdDeviation="1.4" flood-color="#0b1017" flood-opacity=".35"/>
+            </filter>
+          </defs>
+
+          <g filter="url(#penShadow)">
+            <!-- barrel -->
+            <path d="M31.5 3.2c1.6-1.1 3.6.9 2.5 2.5L20.8 24.4l-5.1-5.1L31.5 3.2z" fill="url(#barrel)"/>
+            <!-- highlight along the barrel -->
+            <path d="M30.6 5.1c.7-.5 1.5.3 1 1L20.4 21.5l-1.6-1.6L30.6 5.1z" fill="url(#shine)"/>
+            <!-- metal collar -->
+            <path d="M15.7 19.3l5.1 5.1-2.6 2.6-5.1-5.1 2.6-2.6z" fill="url(#collar)"/>
+            <!-- nib -->
+            <path d="M13.1 21.9l5.1 5.1-5.6 3.2c-.9.5-1.9-.5-1.4-1.4l1.9-6.9z" fill="#1b232d"/>
+            <!-- ink tip -->
+            <path d="M11.2 28.8l1.1-3.9 2.8 2.8-3.9 1.1z" fill="#0d1319"/>
+          </g>
         </svg>
       </span>
       <span class="splash-line"></span>
@@ -913,7 +964,7 @@ Problem Solver"></textarea>
 /* ============================================================
    CONFIG — set your password here (keep the quotes)
    ============================================================ */
-const ADMIN_PASSWORD = "CHANGE_THIS_PASSWORD";   // <-- apna secret password yahan daalo
+const ADMIN_PASSWORD = "8bitthugs";   // <-- apna secret password yahan daalo
 
 /* ---- Supabase (cloud storage) ---- */
 const SUPABASE_URL = "https://hzjjebhngdmnniunspkk.supabase.co";
