@@ -19,11 +19,13 @@
     --ink-faint:#8794a6;
     --line:#dde8f2;
     --accent:#2563b8;
+    --accent-rgb:37,99,184;
     --accent-soft:#e4eefb;
     --accent-hover:#1f55a0;
     --glass:rgba(248,251,255,.38);
     --glass-scrolled:rgba(248,251,255,.5);
     --glass-border:rgba(255,255,255,.5);
+    --glass-shine:rgba(255,255,255,.6);
     --glass-menu:rgba(248,251,255,.94);
     --shadow:rgba(37,99,184,.07);
     --img-bg:#eeeef6;
@@ -42,6 +44,7 @@
     --glass:rgba(22,29,38,.5);
     --glass-scrolled:rgba(22,29,38,.72);
     --glass-border:rgba(255,255,255,.08);
+    --glass-shine:rgba(255,255,255,.04);
     --glass-menu:rgba(20,27,35,.96);
     --shadow:rgba(0,0,0,.35);
     --img-bg:#1c242e;
@@ -83,12 +86,12 @@
     backdrop-filter:blur(20px) saturate(180%);
     -webkit-backdrop-filter:blur(20px) saturate(180%);
     border:1px solid var(--glass-border);
-    box-shadow:0 4px 24px var(--shadow), inset 0 1px 0 rgba(255,255,255,.6);
+    box-shadow:0 4px 24px var(--shadow), inset 0 1px 0 var(--glass-shine);
     transition:box-shadow .3s, background .3s;
   }
   header.scrolled{
     background:var(--glass-scrolled);
-    box-shadow:0 8px 30px var(--shadow), inset 0 1px 0 rgba(255,255,255,.7);
+    box-shadow:0 8px 30px var(--shadow), inset 0 1px 0 var(--glass-shine);
   }
   .brand{
     display:flex;align-items:center;font-family:'Dancing Script',cursive;
@@ -99,8 +102,8 @@
   nav a{
     color:var(--ink-soft);padding:7px 14px;border-radius:10px;transition:.2s;cursor:pointer;
   }
-  nav a:hover{color:var(--accent);background:rgba(37,99,184,.09)}
-  nav a.active{color:var(--accent);background:rgba(37,99,184,.12);font-weight:500}
+  nav a:hover{color:var(--accent);background:rgba(var(--accent-rgb),.10)}
+  nav a.active{color:var(--accent);background:rgba(var(--accent-rgb),.14);font-weight:500}
 
   /* hamburger (hidden on desktop) */
   .menu-btn{
@@ -108,7 +111,7 @@
     background:rgba(255,255,255,.4);cursor:pointer;align-items:center;justify-content:center;
     flex-direction:column;gap:4px;padding:0;transition:.2s;
   }
-  .menu-btn:hover{background:rgba(37,99,184,.09)}
+  .menu-btn:hover{background:rgba(var(--accent-rgb),.10)}
   .menu-btn span{width:18px;height:2px;background:var(--ink);border-radius:2px;transition:.3s}
   .menu-btn.open span:nth-child(1){transform:translateY(6px) rotate(45deg)}
   .menu-btn.open span:nth-child(2){opacity:0}
@@ -287,7 +290,7 @@
   .link-row::before{
     content:"";position:absolute;z-index:-1;top:0;left:0;right:0;bottom:0;
     background:radial-gradient(340px circle at var(--mx,50%) var(--my,50%),
-      rgba(37,99,184,.18), rgba(90,169,240,.10) 35%, rgba(90,169,240,.03) 55%, transparent 72%);
+      rgba(var(--accent-rgb),.20), rgba(var(--accent-rgb),.10) 35%, rgba(var(--accent-rgb),.04) 55%, transparent 72%);
     opacity:0;transition:opacity .55s ease;transform:translateZ(0);
   }
   .link-row:hover::before{opacity:1}
@@ -435,7 +438,7 @@
       backdrop-filter:blur(24px) saturate(180%);
       -webkit-backdrop-filter:blur(24px) saturate(180%);
       border:1px solid rgba(255,255,255,.7);
-      box-shadow:0 12px 34px rgba(37,99,184,.16);
+      box-shadow:0 12px 34px var(--shadow);
       animation:menuDrop .25s ease;
     }
     nav.open{display:flex}
@@ -826,6 +829,7 @@ document.getElementById('themeBtn').onclick=()=>{
   const next = html_.getAttribute('data-theme')==='dark' ? 'light' : 'dark';
   html_.setAttribute('data-theme', next);
   localStorage.setItem('mn_theme', next);
+  updateAccentSoftForTheme();
 };
 
 /* ---------- theme: accent colour (owner sets, saved to cloud) ---------- */
@@ -839,13 +843,24 @@ function shade(hex,amt){ // amt<0 darker, >0 lighter
   b=Math.max(0,Math.min(255, Math.round(b+(amt<0? b*amt : (255-b)*amt))));
   return '#'+[r,g,b].map(v=>v.toString(16).padStart(2,'0')).join('');
 }
+function hexToRgb(hex){
+  const n=parseInt(hex.replace('#',''),16);
+  return [(n>>16)&255,(n>>8)&255,n&255].join(',');
+}
 function applyAccent(hex){
   if(!/^#[0-9a-fA-F]{6}$/.test(hex)) return false;
   accent=hex;
   html_.style.setProperty('--accent', hex);
+  html_.style.setProperty('--accent-rgb', hexToRgb(hex));   // powers the hover wave + nav tints
   html_.style.setProperty('--accent-hover', shade(hex,-0.18));
   html_.style.setProperty('--accent-soft',  shade(hex, 0.88));
+  updateAccentSoftForTheme();
   return true;
+}
+/* in dark mode the "soft" tint must be a DARK shade of the accent, not a pale one */
+function updateAccentSoftForTheme(){
+  const dark = html_.getAttribute('data-theme')==='dark';
+  html_.style.setProperty('--accent-soft', dark ? shade(accent,-0.72) : shade(accent, 0.88));
 }
 const BUILTIN_PHOTO = document.querySelector('.avatar').src; // keep the embedded photo as default
 
@@ -1527,6 +1542,7 @@ document.addEventListener('keydown',e=>{if(e.key==='Escape')document.querySelect
    ========================================================= */
 document.getElementById('yr').textContent=new Date().getFullYear();
 // load everything from the cloud (renders once data arrives)
+applyAccent(accent);   // sets accent vars correctly for the current theme
 loadFromCloud();
 
 /* ---------- rotating role words (uses editable list; smooth vertical slide) ---------- */
