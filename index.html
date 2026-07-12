@@ -646,8 +646,8 @@ function toast(msg){
 async function loadFromCloud(){
   try{
     const [p,l,s]=await Promise.all([
-      sb.from('projects').select('*').order('sort_order',{ascending:true}).order('created_at',{ascending:true}),
-      sb.from('links').select('*').order('sort_order',{ascending:true}).order('created_at',{ascending:true}),
+      sb.from('projects').select('*').order('created_at',{ascending:false}),
+      sb.from('links').select('*').order('created_at',{ascending:true}),
       sb.from('settings').select('*')
     ]);
     if(!p.error && p.data) projects = p.data.map(r=>({id:r.id,title:r.title,link:r.link||'',image_url:r.image_url||''}));
@@ -871,13 +871,13 @@ document.getElementById('saveProj').onclick=async()=>{
       if(error)throw error;
       Object.assign(p,{title,link:fLink.value.trim(),image_url:imageUrl});
     }else{
-      const {data,error}=await sb.from('projects').insert({title,link:fLink.value.trim(),image_url:imageUrl,sort_order:Date.now()}).select().single();
+      const {data,error}=await sb.from('projects').insert({title,link:fLink.value.trim(),image_url:imageUrl}).select().single();
       if(error)throw error;
       projects.unshift({id:data.id,title:data.title,link:data.link||'',image_url:data.image_url||''});
     }
     projModal.classList.remove('show');render();
     toast('Saved to cloud ✓');
-  }catch(e){console.error(e);toast('Save failed — try again');}
+  }catch(e){console.error(e);toast('Save failed: '+(e.message||e.error_description||'unknown error'));}
   btn.disabled=false; btn.textContent=orig;
 };
 
@@ -1015,12 +1015,12 @@ document.getElementById('saveLink').onclick=async()=>{
       if(error)throw error;
       Object.assign(links.find(x=>x.id===editingLinkId),{name,url});
     }else{
-      const {data,error}=await sb.from('links').insert({name,url,sort_order:Date.now()}).select().single();
+      const {data,error}=await sb.from('links').insert({name,url}).select().single();
       if(error)throw error;
       links.push({id:data.id,name:data.name,url:data.url||''});
     }
     linkModal.classList.remove('show');renderLinks();toast('Saved to cloud ✓');
-  }catch(e){console.error(e);toast('Save failed — try again');}
+  }catch(e){console.error(e);toast('Save failed: '+(e.message||e.error_description||'unknown error'));}
   btn.disabled=false;btn.textContent=orig;
 };
 
@@ -1038,7 +1038,7 @@ document.getElementById('saveAbout').onclick=async()=>{
     const {error}=await sb.from('settings').upsert({key:'about',value:val});
     if(error)throw error;
     aboutText=val;aboutModal.classList.remove('show');renderAbout();toast('Saved to cloud ✓');
-  }catch(e){console.error(e);toast('Save failed — try again');}
+  }catch(e){console.error(e);toast('Save failed: '+(e.message||e.error_description||'unknown error'));}
   btn.disabled=false;btn.textContent=orig;
 };
 
@@ -1069,7 +1069,7 @@ document.getElementById('confirmDel').onclick=async()=>{
       links=links.filter(x=>x.id!==delId);renderLinks();
     }
     delModal.classList.remove('show');toast('Deleted ✓');
-  }catch(e){console.error(e);toast('Delete failed — try again');}
+  }catch(e){console.error(e);toast('Delete failed: '+(e.message||'unknown error'));}
   btn.disabled=false;btn.textContent=orig;
 };
 
