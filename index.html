@@ -67,6 +67,50 @@
   html[data-theme="dark"] .theme-btn .ico-sun{display:none}
   html[data-theme="dark"] .theme-btn .ico-moon{display:block}
   *{box-sizing:border-box;margin:0;padding:0}
+
+  /* ================= SPLASH SCREEN ================= */
+  .splash{
+    position:fixed;inset:0;z-index:9999;
+    background:#ffffff;
+    display:grid;place-items:center;
+    transition:opacity .7s ease, visibility .7s ease;
+  }
+  .splash.done{opacity:0;visibility:hidden}
+  .splash-name{
+    position:relative;display:inline-block;
+    font-family:'Dancing Script',cursive;
+    font-weight:600;color:#16202e;
+    font-size:clamp(34px,7vw,62px);
+    line-height:1.25;white-space:nowrap;padding:0 6px;
+  }
+  /* the mask slides right, uncovering the name like it's being written */
+  .splash-mask{
+    position:absolute;top:-6%;right:0;bottom:-6%;left:0;
+    background:#ffffff;
+    animation:write 2s cubic-bezier(.55,.05,.3,1) .35s forwards;
+  }
+  @keyframes write{
+    from{left:0}
+    to{left:100%}
+  }
+  /* a soft "pen tip" that travels with the reveal */
+  .splash-pen{
+    position:absolute;top:12%;bottom:12%;left:0;width:2px;
+    background:linear-gradient(180deg,transparent,rgba(22,32,46,.35),transparent);
+    opacity:0;
+    animation:pen 2s cubic-bezier(.55,.05,.3,1) .35s forwards;
+  }
+  @keyframes pen{
+    0%{left:0;opacity:0}
+    8%{opacity:1}
+    92%{opacity:1}
+    100%{left:100%;opacity:0}
+  }
+  body.splash-on{overflow:hidden}
+  @media (prefers-reduced-motion:reduce){
+    .splash-mask,.splash-pen{animation:none}
+    .splash-mask{display:none}
+  }
   html{-webkit-text-size-adjust:100%;scroll-behavior:smooth}
   body{
     font-family:'Inter',system-ui,sans-serif;
@@ -479,6 +523,24 @@
 </head>
 <body>
 
+<!-- ===== Splash screen (shows on every load) ===== -->
+<div class="splash" id="splash">
+  <div class="splash-name">
+    <span class="splash-text">Muhammad Noman</span>
+    <span class="splash-mask"></span>
+    <span class="splash-pen"></span>
+  </div>
+</div>
+
+<!-- ===== Splash screen (handwriting intro) ===== -->
+<div class="splash" id="splash">
+  <div class="splash-name">
+    <span class="splash-text">Muhammad Noman</span>
+    <span class="splash-mask"></span>
+    <span class="splash-pen"></span>
+  </div>
+</div>
+
 <div class="admin-bar">
   <span><span class="dot"></span>Edit mode — you can add, edit, and delete</span>
   <span style="display:flex;gap:8px">
@@ -795,9 +857,31 @@ Problem Solver"></textarea>
 
 <script>
 /* ============================================================
+   SPLASH SCREEN — signature writes itself, then fades away
+   ============================================================ */
+(function(){
+  const splash=document.getElementById('splash');
+  if(!splash)return;
+  document.body.classList.add('splash-on');   // no scrolling while it's up
+
+  const HOLD = 2600;   // 0.35s delay + 2s writing + a short beat to admire it
+
+  function dismiss(){
+    splash.classList.add('done');
+    document.body.classList.remove('splash-on');
+    setTimeout(()=>splash.remove(), 800);     // clean it out after the fade
+  }
+  // wait for fonts so the signature never flashes in the wrong typeface
+  const fontsReady = document.fonts ? document.fonts.ready : Promise.resolve();
+  fontsReady.then(()=>setTimeout(dismiss, HOLD));
+  // safety: never let the splash get stuck if fonts stall
+  setTimeout(dismiss, HOLD + 2500);
+})();
+
+/* ============================================================
    CONFIG — set your password here (keep the quotes)
    ============================================================ */
-const ADMIN_PASSWORD = "8bitthugs";   // <-- apna secret password yahan daalo
+const ADMIN_PASSWORD = "CHANGE_THIS_PASSWORD";   // <-- apna secret password yahan daalo
 
 /* ---- Supabase (cloud storage) ---- */
 const SUPABASE_URL = "https://hzjjebhngdmnniunspkk.supabase.co";
