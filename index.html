@@ -77,36 +77,15 @@
   }
   .splash.done{opacity:0;visibility:hidden}
 
-  /* the plane flies up from below, then drags the whole splash up with it */
-  .splash-plane{
-    position:absolute;left:50%;bottom:-140px;
-    width:clamp(46px,7vw,74px);
-    transform:translate(-50%,0) rotate(-8deg);
-    opacity:0;pointer-events:none;z-index:4;
-    will-change:transform,opacity;
-  }
-  .splash-plane svg{width:100%;height:auto;display:block}
-  .splash.flyout .splash-plane{
-    animation:planeFly 1.15s cubic-bezier(.5,-0.1,.35,1) forwards;
-  }
-  @keyframes planeFly{
-    0%   {bottom:-140px; opacity:0; transform:translate(-50%,0)   rotate(-4deg)  scale(.85)}
-    18%  {opacity:1}
-    42%  {bottom:38%;               transform:translate(-50%,0)   rotate(-16deg) scale(1.06)}
-    70%  {opacity:1}
-    100% {bottom:118%;  opacity:0;  transform:translate(-50%,0)   rotate(-24deg) scale(.7)}
-  }
-
-  /* the splash itself gets carried upward and out */
+  /* the splash slides up and out */
   .splash.flyout{
-    animation:splashLift 1.15s cubic-bezier(.62,0,.3,1) .28s forwards;
+    animation:splashLift .75s cubic-bezier(.7,0,.2,1) forwards;
+    box-shadow:0 24px 60px rgba(20,30,45,.18);
   }
   @keyframes splashLift{
     0%   {transform:translateY(0);      border-radius:0}
-    30%  {transform:translateY(-1.5%);  border-radius:0}
-    100% {transform:translateY(-102%);  border-radius:0 0 34px 34px}
+    100% {transform:translateY(-102%);  border-radius:0 0 32px 32px}
   }
-  .splash.flyout{box-shadow:0 24px 60px rgba(20,30,45,.18)}
   .splash-inner{text-align:center}
 
   .splash-name{
@@ -120,7 +99,7 @@
   .splash-mask{
     position:absolute;top:-8%;right:0;bottom:-8%;left:0;
     background:#ffffff;z-index:2;
-    animation:write 2.1s cubic-bezier(.5,.05,.3,1) .4s forwards;
+    animation:write 1.5s cubic-bezier(.5,.05,.3,1) .25s forwards;
   }
   @keyframes write{ from{left:0} to{left:100%} }
 
@@ -128,14 +107,14 @@
   .splash-pen{
     position:absolute;top:50%;left:0;z-index:3;
     opacity:0;
-    animation:penGlide 2.1s cubic-bezier(.5,.05,.3,1) .4s forwards;
+    animation:penGlide 1.5s cubic-bezier(.5,.05,.3,1) .25s forwards;
     will-change:left,opacity;
   }
   /* inner wrapper does the bobbing + tilting, so it doesn't fight the glide */
   .splash-pen svg{
     width:clamp(24px,4vw,38px);height:clamp(24px,4vw,38px);display:block;
     transform-origin:22% 78%;   /* pivot near the nib, like a real pen */
-    animation:penWrite 2.1s linear .4s forwards;
+    animation:penWrite 1.5s linear .25s forwards;
     will-change:transform;
   }
   /* the glide: left→right, fading in and out at the ends */
@@ -166,7 +145,7 @@
     position:absolute;left:4px;right:4px;bottom:-6px;height:2px;
     background:#16202e;border-radius:2px;
     transform:scaleX(0);transform-origin:left center;
-    animation:drawLine .8s cubic-bezier(.22,1,.36,1) 2.35s forwards;
+    animation:drawLine .55s cubic-bezier(.22,1,.36,1) 1.7s forwards;
   }
   @keyframes drawLine{ to{transform:scaleX(1)} }
 
@@ -178,7 +157,7 @@
     letter-spacing:.16em;text-transform:uppercase;font-weight:500;
     color:#8794a6;
     opacity:0;transform:translateY(8px);
-    animation:subIn .9s cubic-bezier(.22,1,.36,1) 2.75s forwards;
+    animation:subIn .6s cubic-bezier(.22,1,.36,1) 2s forwards;
   }
   @keyframes subIn{ to{opacity:1;transform:none} }
 
@@ -186,7 +165,6 @@
   @media (prefers-reduced-motion:reduce){
     .splash-mask{display:none}
     .splash-pen{display:none}
-    .splash-plane{display:none}
     .splash-line,.splash-sub{animation:none;opacity:1;transform:none}
     /* no fly-out animation here, so make sure it still disappears */
     .splash.flyout{animation:none;opacity:0;visibility:hidden;transition:opacity .4s ease}
@@ -650,34 +628,6 @@
     <p class="splash-sub">UI/UX &amp; Product Designer</p>
   </div>
 
-  <!-- paper plane: flies up from below and carries the splash away -->
-  <div class="splash-plane" id="splashPlane">
-    <svg viewBox="0 0 64 64" xmlns="http://www.w3.org/2000/svg">
-      <defs>
-        <linearGradient id="planeTop" x1="10" y1="8" x2="52" y2="40" gradientUnits="userSpaceOnUse">
-          <stop offset="0"   stop-color="#ffffff"/>
-          <stop offset=".55" stop-color="#dbe6f2"/>
-          <stop offset="1"   stop-color="#b6c7da"/>
-        </linearGradient>
-        <linearGradient id="planeSide" x1="20" y1="20" x2="44" y2="52" gradientUnits="userSpaceOnUse">
-          <stop offset="0" stop-color="#9fb2c7"/>
-          <stop offset="1" stop-color="#6d8299"/>
-        </linearGradient>
-        <linearGradient id="planeUnder" x1="16" y1="30" x2="40" y2="54" gradientUnits="userSpaceOnUse">
-          <stop offset="0" stop-color="#7f93a9"/>
-          <stop offset="1" stop-color="#4e6274"/>
-        </linearGradient>
-        <filter id="planeShadow" x="-40%" y="-40%" width="180%" height="180%">
-          <feDropShadow dx="0" dy="4" stdDeviation="3.5" flood-color="#22303f" flood-opacity=".3"/>
-        </filter>
-      </defs>
-      <g filter="url(#planeShadow)">
-        <path d="M58 6 6 27l19 8L58 6z"       fill="url(#planeTop)"/>
-        <path d="M58 6 25 35l6 21 27-50z"     fill="url(#planeSide)"/>
-        <path d="M25 35l6 21-9-8-.5-9.5L25 35z" fill="url(#planeUnder)"/>
-      </g>
-    </svg>
-  </div>
 </div>
 
 <div class="admin-bar">
@@ -1003,8 +953,8 @@ Problem Solver"></textarea>
   if(!splash)return;
   document.body.classList.add('splash-on');   // no scrolling while it's up
 
-  const HOLD = 3900;   // name writes → line draws → subheading fades in
-  const EXIT = 1500;   // plane flies up and carries the splash off screen
+  const HOLD = 2750;  // name writes → line draws → subheading fades in
+  const EXIT = 850;   // splash slides up and out
 
   let dismissed=false;
   function dismiss(){
