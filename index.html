@@ -159,6 +159,9 @@
   .rotator .word.in{
     animation:slideInUp .5s cubic-bezier(.16,1,.3,1) forwards;
   }
+  /* safety net: if a stray word ever survives (slow network, double init),
+     hide it instead of letting it sit next to the real one */
+  .rotator .word:not(.out):not(.in) ~ .word:not(.out):not(.in){display:none}
   @keyframes slideOutUp{
     0%{transform:translateY(0);opacity:1}
     100%{transform:translateY(-115%);opacity:0}
@@ -927,8 +930,8 @@ function renderHero(){
   document.getElementById('headPost').textContent = hero.post;
   document.getElementById('lede1').textContent    = hero.lede1;
   document.getElementById('lede2').innerHTML      = linkifyEmail(hero.lede2);
-  const w=document.querySelector('.rotator .word');
-  if(w && hero.words.length) w.textContent=hero.words[0];
+  // the rotating word is owned entirely by restartRotator() — don't touch it here,
+  // otherwise the two can fight and you briefly see two words
 }
 
 /* =========================================================
@@ -1546,33 +1549,49 @@ applyAccent(accent);   // sets accent vars correctly for the current theme
 loadFromCloud();
 
 /* ---------- rotating role words (uses editable list; smooth vertical slide) ---------- */
-let rotTimer=null;
+let rotTimer=null, rotCleanup=null, rotRun=0;
 function restartRotator(){
   const el=document.getElementById('rotator');
   if(!el)return;
-  clearInterval(rotTimer);
+
+  // hard-stop anything the previous run had scheduled, otherwise a pending
+  // cleanup can leave an extra word in the DOM and you see two words at once
+  clearInterval(rotTimer); rotTimer=null;
+  clearTimeout(rotCleanup); rotCleanup=null;
+  const myRun = ++rotRun;              // any older run becomes stale and exits
+
   const reduce=window.matchMedia&&window.matchMedia('(prefers-reduced-motion: reduce)').matches;
   let i=0;
-  // reset to a single word showing the first item
+
+  // reset to exactly ONE word
   el.innerHTML='<span class="word"></span>';
   el.querySelector('.word').textContent = hero.words[0] || '';
-  if(hero.words.length<2) return; // nothing to rotate
+  if(hero.words.length<2) return;      // nothing to rotate
 
   function next(){
+    if(myRun!==rotRun) return;         // a newer run took over — stop
     i=(i+1)%hero.words.length;
     const cur=el.querySelector('.word');
     if(!cur)return;
     if(reduce){ cur.textContent=hero.words[i]; return; }
+
+    // never allow more than one outgoing word
+    el.querySelectorAll('.word').forEach((w,idx)=>{ if(idx>0) w.remove(); });
+
     cur.classList.add('out');
     const incoming=document.createElement('span');
     incoming.className='word in';
     incoming.textContent=hero.words[i];
     el.appendChild(incoming);
-    setTimeout(()=>{ cur.remove(); incoming.classList.remove('in'); },520);
+
+    rotCleanup=setTimeout(()=>{
+      if(myRun!==rotRun) return;
+      cur.remove();
+      incoming.classList.remove('in');
+    },520);
   }
   rotTimer=setInterval(next,2400);
 }
-restartRotator();
 
 // open the right page based on URL hash (design/blog), else home
 const startHash=location.hash.replace('#','');
