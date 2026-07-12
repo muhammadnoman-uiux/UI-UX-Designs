@@ -799,13 +799,13 @@
     </div>
 
     <div class="field">
-      <label for="bgHex">Background colour <span style="font-weight:400;color:var(--ink-faint)">— optional</span></label>
+      <label for="bgHex">Background colour</label>
       <div style="display:flex;gap:10px;align-items:center">
         <input id="bgPick" type="color" style="width:46px;height:42px;padding:2px;border-radius:9px;border:1px solid var(--line);background:var(--surface);cursor:pointer">
-        <input id="bgHex" type="text" placeholder="auto — derived from accent" style="flex:1">
-        <button class="btn" id="autoBg" style="flex:0 0 auto;width:auto;padding:10px 13px;font-size:12.5px">Auto</button>
+        <input id="bgHex" type="text" placeholder="#F0F8FF" style="flex:1">
+        <button class="btn" id="autoBg" style="flex:0 0 auto;width:auto;padding:10px 13px;font-size:12.5px">Default</button>
       </div>
-      <p class="pw-note" style="margin-top:8px">Leave blank (or hit <b>Auto</b>) and it's derived from the accent. This is your light-mode background — dark mode gets a matching dark version automatically.</p>
+      <p class="pw-note" style="margin-top:8px">Hit <b>Default</b> to restore the original background. This is the light-mode colour — dark mode gets a matching dark version automatically.</p>
     </div>
     <div class="modal-actions">
       <button class="btn" id="resetColor">Reset default</button>
@@ -1029,6 +1029,7 @@ document.getElementById('themeBtn').onclick=()=>{
 
 /* ---------- theme: accent colour (owner sets, saved to cloud) ---------- */
 const DEFAULT_ACCENT='#2563b8';
+const DEFAULT_BG='#F0F8FF';   // the original background — what "Default" restores
 let accent=DEFAULT_ACCENT;
 function shade(hex,amt){ // amt<0 darker, >0 lighter
   const n=parseInt(hex.replace('#',''),16);
@@ -1077,10 +1078,10 @@ function applyTheme(){
   S.setProperty('--accent-hover', shade(hex,-0.18));
 
   // ---- pick the base background ----
-  // light mode: the owner's colour, or a soft wash of the accent
+  // light mode: the owner's colour, or the original default
   const lightBg = (customBg && /^#[0-9a-fA-F]{6}$/.test(customBg))
                     ? customBg
-                    : mix(hex,'#ffffff',0.94);
+                    : DEFAULT_BG;
   // dark mode: a deep version of that same background hue
   const darkBg  = mix(lightBg,'#05080c',0.92);
 
@@ -1753,8 +1754,8 @@ const bgHex=document.getElementById('bgHex'),       bgPick=document.getElementBy
 
 document.getElementById('themeColorBtn').onclick=()=>{
   colorHex.value=accent; colorPick.value=accent;
-  bgHex.value = customBg || '';
-  bgPick.value = customBg || getComputedStyle(html_).getPropertyValue('--bg').trim() || '#ffffff';
+  bgHex.value  = customBg || DEFAULT_BG;
+  bgPick.value = customBg || DEFAULT_BG;
   colorModal.classList.add('show'); setTimeout(()=>colorHex.focus(),50);
 };
 
@@ -1773,12 +1774,13 @@ bgHex.oninput=()=>{
   if(v[0]!=='#') v='#'+v;
   if(/^#[0-9a-fA-F]{6}$/.test(v)){ bgPick.value=v; applyBg(v); }
 };
-document.getElementById('autoBg').onclick=()=>{ bgHex.value=''; applyBg(''); };
+document.getElementById('autoBg').onclick=()=>{ bgHex.value=DEFAULT_BG; bgPick.value=DEFAULT_BG; applyBg(DEFAULT_BG); };
 
 document.getElementById('resetColor').onclick=()=>{
-  accent=DEFAULT_ACCENT; customBg='';
+  accent=DEFAULT_ACCENT; customBg=DEFAULT_BG;
   colorHex.value=DEFAULT_ACCENT; colorPick.value=DEFAULT_ACCENT;
-  bgHex.value=''; applyTheme();
+  bgHex.value=DEFAULT_BG;        bgPick.value=DEFAULT_BG;
+  applyTheme();
 };
 
 document.getElementById('saveColor').onclick=async()=>{
