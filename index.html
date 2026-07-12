@@ -727,8 +727,8 @@ function render(){
   add.onclick=()=>openProj();
   grid.appendChild(add);
   designCount.textContent=projects.length+(projects.length===1?' project':' projects');
-  grid.querySelectorAll('.card-tools .edit').forEach(b=>b.onclick=(e)=>{e.preventDefault();e.stopPropagation();openProj(+b.dataset.id);});
-  grid.querySelectorAll('.card-tools .del').forEach(b=>b.onclick=(e)=>{e.preventDefault();e.stopPropagation();askDelete('project',+b.dataset.id);});
+  grid.querySelectorAll('.card-tools .edit').forEach(b=>b.onclick=(e)=>{e.preventDefault();e.stopPropagation();openProj(b.dataset.id);});
+  grid.querySelectorAll('.card-tools .del').forEach(b=>b.onclick=(e)=>{e.preventDefault();e.stopPropagation();askDelete('project',b.dataset.id);});
   buildMarquee();
 }
 
@@ -783,8 +783,8 @@ function renderLinks(){
   add.className='add-row'; add.innerHTML=`<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 5v14M5 12h14"/></svg> Add live project`;
   add.onclick=()=>openLink();
   linkList.appendChild(add);
-  linkList.querySelectorAll('.link-tools .edit').forEach(b=>b.onclick=()=>openLink(+b.dataset.id));
-  linkList.querySelectorAll('.link-tools .del').forEach(b=>b.onclick=()=>askDelete('link',+b.dataset.id));
+  linkList.querySelectorAll('.link-tools .edit').forEach(b=>b.onclick=()=>openLink(b.dataset.id));
+  linkList.querySelectorAll('.link-tools .del').forEach(b=>b.onclick=()=>askDelete('link',b.dataset.id));
   // cursor-following gradient wave (eased for smooth flow)
   linkList.querySelectorAll('.link-row').forEach(row=>{
     let tx=0,ty=0,cx=0,cy=0,raf=null,inside=false;
@@ -842,7 +842,7 @@ let editingId=null,pickedImageData='';
 function openProj(id){
   editingId=id||null; pickedImageData='';
   thumbPreview.innerHTML='';thumbPick.classList.remove('has');thumbPickText.textContent='Click to choose an image';
-  if(id){const p=projects.find(x=>x.id===id);
+  if(id){const p=projects.find(x=>String(x.id)===String(id));
     document.getElementById('projModalTitle').textContent='Edit project';
     fTitle.value=p.title;fLink.value=p.link||'';
     if(p.image_url){pickedImageData=p.image_url;showThumb(p.image_url);}
@@ -866,7 +866,7 @@ document.getElementById('saveProj').onclick=async()=>{
       imageUrl = await uploadImage(pickedImageData);
     }
     if(editingId){
-      const p=projects.find(x=>x.id===editingId);
+      const p=projects.find(x=>String(x.id)===String(editingId));
       const {error}=await sb.from('projects').update({title,link:fLink.value.trim(),image_url:imageUrl}).eq('id',editingId);
       if(error)throw error;
       Object.assign(p,{title,link:fLink.value.trim(),image_url:imageUrl});
@@ -996,7 +996,7 @@ const lName=document.getElementById('lName'),lUrl=document.getElementById('lUrl'
 let editingLinkId=null;
 function openLink(id){
   editingLinkId=id||null;
-  if(id){const l=links.find(x=>x.id===id);
+  if(id){const l=links.find(x=>String(x.id)===String(id));
     document.getElementById('linkModalTitle').textContent='Edit live project';
     lName.value=l.name;lUrl.value=l.url||'';
   }else{document.getElementById('linkModalTitle').textContent='Add live project';lName.value='';lUrl.value='';}
@@ -1013,7 +1013,7 @@ document.getElementById('saveLink').onclick=async()=>{
     if(editingLinkId){
       const {error}=await sb.from('links').update({name,url}).eq('id',editingLinkId);
       if(error)throw error;
-      Object.assign(links.find(x=>x.id===editingLinkId),{name,url});
+      Object.assign(links.find(x=>String(x.id)===String(editingLinkId)),{name,url});
     }else{
       const {data,error}=await sb.from('links').insert({name,url}).select().single();
       if(error)throw error;
@@ -1049,9 +1049,9 @@ const delModal=document.getElementById('delModal');let delType='project',delId=n
 function askDelete(type,id){
   delType=type;delId=id;
   let item;
-  if(type==='project')item=projects.find(x=>x.id===id);
-  else item=links.find(x=>x.id===id);
-  const label=type==='project'?item.title:item.name;
+  if(type==='project')item=projects.find(x=>String(x.id)===String(id));
+  else item=links.find(x=>String(x.id)===String(id));
+  const label=item ? (type==='project'?item.title:item.name) : 'This item';
   document.getElementById('delText').textContent=`“${label}” will be removed from your live site. This can’t be undone.`;
   delModal.classList.add('show');
 }
@@ -1062,11 +1062,11 @@ document.getElementById('confirmDel').onclick=async()=>{
     if(delType==='project'){
       const {error}=await sb.from('projects').delete().eq('id',delId);
       if(error)throw error;
-      projects=projects.filter(x=>x.id!==delId);render();
+      projects=projects.filter(x=>String(x.id)!==String(delId));render();
     }else{
       const {error}=await sb.from('links').delete().eq('id',delId);
       if(error)throw error;
-      links=links.filter(x=>x.id!==delId);renderLinks();
+      links=links.filter(x=>String(x.id)!==String(delId));renderLinks();
     }
     delModal.classList.remove('show');toast('Deleted ✓');
   }catch(e){console.error(e);toast('Delete failed: '+(e.message||'unknown error'));}
