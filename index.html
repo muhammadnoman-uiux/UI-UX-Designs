@@ -348,6 +348,9 @@
     position:relative;width:100%;height:300px;background:#0d1117;border-radius:12px;
     overflow:hidden;touch-action:none;cursor:move;user-select:none;
   }
+  /* avatar crop: square stage, round guide (what you see is what gets saved) */
+  .crop-stage.avatar{height:300px;max-width:300px;margin:0 auto}
+  .crop-stage.avatar .crop-frame::after{border-radius:50%}
   .crop-stage img{position:absolute;top:0;left:0;transform-origin:0 0;pointer-events:none;max-width:none}
   .crop-frame{
     position:absolute;inset:0;pointer-events:none;
@@ -992,6 +995,7 @@ const STAGE_H=()=>cropStage.clientHeight||cropStage.offsetHeight||248;
 let cropTarget='project'; // 'project' | 'avatar'
 function openCrop(file, target){
   cropTarget = target || 'project';
+  cropStage.classList.toggle('avatar', cropTarget==='avatar');
   const r=new FileReader();
   r.onload=()=>{
     cropImg.onload=()=>{
@@ -1011,20 +1015,30 @@ function setCropMode(m){
   cropMode=m;
   document.getElementById('modeCrop').classList.toggle('active',m==='crop');
   document.getElementById('modeFull').classList.toggle('active',m==='full');
+
+  // scale that fills the frame (cover) and scale that fits it whole (contain)
+  const coverScale   = Math.max(STAGE_W()/cImgW, STAGE_H()/cImgH);
+  const containScale = Math.min(STAGE_W()/cImgW, STAGE_H()/cImgH);
+
   if(m==='crop'){
-    zoomControls.style.display='flex'; cropHint.textContent='Drag to move · use slider to zoom';
+    zoomControls.style.display='flex';
+    cropHint.textContent='Drag to move · use the slider to zoom in or out';
     cropStage.style.cursor='move';
-    // cover: scale so image fills stage
-    cMinScale=Math.max(STAGE_W()/cImgW, STAGE_H()/cImgH);
-    cScale=cMinScale; zoomRange.min=cMinScale; zoomRange.max=cMinScale*3; zoomRange.value=cMinScale;
+    // FREE range: can zoom out smaller than the frame, or in up to 4x
+    cMinScale = containScale * 0.5;
+    cScale    = coverScale;              // start filling the frame
+    zoomRange.min   = cMinScale;
+    zoomRange.max   = coverScale * 4;
+    zoomRange.step  = (zoomRange.max - zoomRange.min) / 200;
+    zoomRange.value = cScale;
     cx=(STAGE_W()-cImgW*cScale)/2; cy=(STAGE_H()-cImgH*cScale)/2;
     applyCropTransform();
   }else{
-    zoomControls.style.display='none'; cropHint.textContent='The full image will be shown, nothing cut off';
+    zoomControls.style.display='none';
+    cropHint.textContent='The full image will be shown, nothing cut off';
     cropStage.style.cursor='default';
-    // contain: fit whole image inside stage, centered
-    const s=Math.min(STAGE_W()/cImgW, STAGE_H()/cImgH);
-    cScale=s; cx=(STAGE_W()-cImgW*s)/2; cy=(STAGE_H()-cImgH*s)/2;
+    cScale=containScale;
+    cx=(STAGE_W()-cImgW*cScale)/2; cy=(STAGE_H()-cImgH*cScale)/2;
     applyCropTransform();
   }
 }
@@ -1033,9 +1047,11 @@ function applyCropTransform(){
   cropImg.style.transform=`translate(${cx}px,${cy}px) scale(${cScale})`;
 }
 function clampPan(){
-  const w=cImgW*cScale,h=cImgH*cScale;
-  if(w>=STAGE_W()){ cx=Math.min(0,Math.max(STAGE_W()-w,cx)); } else { cx=(STAGE_W()-w)/2; }
-  if(h>=STAGE_H()){ cy=Math.min(0,Math.max(STAGE_H()-h,cy)); } else { cy=(STAGE_H()-h)/2; }
+  // free positioning — just keep a bit of the image inside the frame
+  const w=cImgW*cScale, h=cImgH*cScale;
+  const keep=0.25; // at least 25% of the image stays visible
+  cx=Math.min(STAGE_W()-w*keep, Math.max(-w*(1-keep), cx));
+  cy=Math.min(STAGE_H()-h*keep, Math.max(-h*(1-keep), cy));
 }
 // drag
 cropStage.addEventListener('pointerdown',e=>{if(cropMode!=='crop')return;dragging=true;dsx=e.clientX-cx;dsy=e.clientY-cy;cropStage.setPointerCapture(e.pointerId);});
