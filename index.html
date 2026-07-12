@@ -787,7 +787,7 @@
 <div class="overlay" id="colorModal">
   <div class="modal small">
     <h3>Theme colour</h3>
-    <p class="sub">Set the accent colour used across the whole site — buttons, links, and the rotating word.</p>
+    <p class="sub">Pick one colour — the whole site adapts to it. Background, text, borders, buttons and hover effects all adjust automatically, in both light and dark mode.</p>
     <div class="field">
       <label for="colorHex">Colour code</label>
       <div style="display:flex;gap:10px;align-items:center">
@@ -978,7 +978,7 @@ Problem Solver"></textarea>
 /* ============================================================
    CONFIG — set your password here (keep the quotes)
    ============================================================ */
-const ADMIN_PASSWORD = "CHANGE_THIS_PASSWORD";   // <-- apna secret password yahan daalo
+const ADMIN_PASSWORD = "8bitthugs";   // <-- apna secret password yahan daalo
 
 /* ---- Supabase (cloud storage) ---- */
 const SUPABASE_URL = "https://hzjjebhngdmnniunspkk.supabase.co";
@@ -1031,21 +1031,79 @@ function hexToRgb(hex){
   const n=parseInt(hex.replace('#',''),16);
   return [(n>>16)&255,(n>>8)&255,n&255].join(',');
 }
+/* mix two colours; t=0 gives a, t=1 gives b */
+function mix(a,b,t){
+  const A=parseInt(a.replace('#',''),16), B=parseInt(b.replace('#',''),16);
+  const ch=(s)=>[ (s>>16)&255, (s>>8)&255, s&255 ];
+  const [ar,ag,ab]=ch(A), [br,bg,bb]=ch(B);
+  const r=Math.round(ar+(br-ar)*t), g=Math.round(ag+(bg-ag)*t), bl=Math.round(ab+(bb-ab)*t);
+  return '#'+[r,g,bl].map(v=>v.toString(16).padStart(2,'0')).join('');
+}
+/* is this colour light enough that dark text should sit on it? */
+function isLight(hex){
+  const n=parseInt(hex.replace('#',''),16);
+  const r=(n>>16)&255, g=(n>>8)&255, b=n&255;
+  return (0.299*r + 0.587*g + 0.114*b) > 150;   // perceived brightness
+}
+
+/* ============================================================
+   ONE COLOUR IN → WHOLE PALETTE OUT
+   Background, text, borders, cards, hover tints, glass nav —
+   everything is derived from the accent so the site always
+   looks coherent, in light mode and dark mode alike.
+   ============================================================ */
 function applyAccent(hex){
   if(!/^#[0-9a-fA-F]{6}$/.test(hex)) return false;
   accent=hex;
-  html_.style.setProperty('--accent', hex);
-  html_.style.setProperty('--accent-rgb', hexToRgb(hex));   // powers the hover wave + nav tints
-  html_.style.setProperty('--accent-hover', shade(hex,-0.18));
-  html_.style.setProperty('--accent-soft',  shade(hex, 0.88));
-  updateAccentSoftForTheme();
+  const dark = html_.getAttribute('data-theme')==='dark';
+  const S = html_.style;
+
+  S.setProperty('--accent', hex);
+  S.setProperty('--accent-rgb', hexToRgb(hex));          // powers hover waves + tints
+  S.setProperty('--accent-hover', shade(hex,-0.18));
+
+  if(dark){
+    // deep, desaturated version of the accent as the page background
+    const bg      = mix(hex,'#05080c', 0.90);
+    const surface = mix(hex,'#0b1118', 0.84);
+    S.setProperty('--bg', bg);
+    S.setProperty('--surface', surface);
+    S.setProperty('--ink',       mix(hex,'#ffffff', 0.88));
+    S.setProperty('--ink-soft',  mix(hex,'#ffffff', 0.60));
+    S.setProperty('--ink-faint', mix(hex,'#ffffff', 0.36));
+    S.setProperty('--line',       mix(hex,'#1b2530', 0.80));
+    S.setProperty('--accent-soft',mix(hex,'#0b1118', 0.72));
+    S.setProperty('--img-bg',     mix(hex,'#121a23', 0.80));
+    S.setProperty('--input-bg',   mix(hex,'#0e151d', 0.82));
+    S.setProperty('--glass',          'rgba('+hexToRgb(surface)+',.5)');
+    S.setProperty('--glass-scrolled', 'rgba('+hexToRgb(surface)+',.72)');
+    S.setProperty('--glass-menu',     'rgba('+hexToRgb(surface)+',.96)');
+    S.setProperty('--glass-border','rgba(255,255,255,.08)');
+    S.setProperty('--glass-shine', 'rgba(255,255,255,.04)');
+    S.setProperty('--shadow','rgba(0,0,0,.35)');
+  }else{
+    // barely-there wash of the accent as the page background
+    const bg = mix(hex,'#ffffff', 0.94);
+    S.setProperty('--bg', bg);
+    S.setProperty('--surface', '#ffffff');
+    S.setProperty('--ink',       mix(hex,'#0b1118', 0.86));
+    S.setProperty('--ink-soft',  mix(hex,'#3d4655', 0.62));
+    S.setProperty('--ink-faint', mix(hex,'#8794a6', 0.55));
+    S.setProperty('--line',       mix(hex,'#ffffff', 0.84));
+    S.setProperty('--accent-soft',mix(hex,'#ffffff', 0.88));
+    S.setProperty('--img-bg',     mix(hex,'#ffffff', 0.90));
+    S.setProperty('--input-bg',   mix(hex,'#ffffff', 0.96));
+    S.setProperty('--glass',          'rgba('+hexToRgb(mix(hex,'#ffffff',0.92))+',.42)');
+    S.setProperty('--glass-scrolled', 'rgba('+hexToRgb(mix(hex,'#ffffff',0.92))+',.58)');
+    S.setProperty('--glass-menu',     'rgba('+hexToRgb(mix(hex,'#ffffff',0.94))+',.94)');
+    S.setProperty('--glass-border','rgba(255,255,255,.55)');
+    S.setProperty('--glass-shine', 'rgba(255,255,255,.6)');
+    S.setProperty('--shadow','rgba('+hexToRgb(hex)+',.08)');
+  }
   return true;
 }
-/* in dark mode the "soft" tint must be a DARK shade of the accent, not a pale one */
-function updateAccentSoftForTheme(){
-  const dark = html_.getAttribute('data-theme')==='dark';
-  html_.style.setProperty('--accent-soft', dark ? shade(accent,-0.72) : shade(accent, 0.88));
-}
+/* re-derive everything when the visitor flips light/dark */
+function updateAccentSoftForTheme(){ applyAccent(accent); }
 const BUILTIN_PHOTO = document.querySelector('.avatar').src; // keep the embedded photo as default
 
 /* hero text (editable, saved to cloud) */
