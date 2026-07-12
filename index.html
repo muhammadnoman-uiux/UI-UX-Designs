@@ -892,15 +892,20 @@ const zoomControls=document.getElementById('zoomControls');
 const cropHint=document.getElementById('cropHint');
 let cropMode='crop'; // 'crop' | 'full'
 let cImgW=0,cImgH=0,cScale=1,cMinScale=1,cx=0,cy=0,dragging=false,dsx=0,dsy=0;
-const STAGE_W=()=>cropStage.clientWidth, STAGE_H=()=>cropStage.clientHeight;
+const STAGE_W=()=>cropStage.clientWidth||cropStage.offsetWidth||360;
+const STAGE_H=()=>cropStage.clientHeight||cropStage.offsetHeight||248;
 
 function openCrop(file){
   const r=new FileReader();
   r.onload=()=>{
     cropImg.onload=()=>{
       cImgW=cropImg.naturalWidth; cImgH=cropImg.naturalHeight;
-      setCropMode('crop');
+      // show the modal FIRST so the stage has a real width/height,
+      // otherwise clientWidth is 0 and the image renders blank
       cropModal.classList.add('show');
+      requestAnimationFrame(()=>{
+        requestAnimationFrame(()=>setCropMode('crop'));
+      });
     };
     cropImg.src=r.result;
   };
