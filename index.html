@@ -76,6 +76,8 @@
     transition:opacity .7s ease, visibility .7s ease;
   }
   .splash.done{opacity:0;visibility:hidden}
+  .splash-inner{text-align:center}
+
   .splash-name{
     position:relative;display:inline-block;
     font-family:'Dancing Script',cursive;
@@ -85,31 +87,55 @@
   }
   /* the mask slides right, uncovering the name like it's being written */
   .splash-mask{
-    position:absolute;top:-6%;right:0;bottom:-6%;left:0;
-    background:#ffffff;
-    animation:write 2s cubic-bezier(.55,.05,.3,1) .35s forwards;
+    position:absolute;top:-8%;right:0;bottom:-8%;left:0;
+    background:#ffffff;z-index:2;
+    animation:write 2.1s cubic-bezier(.5,.05,.3,1) .4s forwards;
   }
-  @keyframes write{
-    from{left:0}
-    to{left:100%}
-  }
-  /* a soft "pen tip" that travels with the reveal */
+  @keyframes write{ from{left:0} to{left:100%} }
+
+  /* pen icon rides along with the writing */
   .splash-pen{
-    position:absolute;top:12%;bottom:12%;left:0;width:2px;
-    background:linear-gradient(180deg,transparent,rgba(22,32,46,.35),transparent);
-    opacity:0;
-    animation:pen 2s cubic-bezier(.55,.05,.3,1) .35s forwards;
+    position:absolute;top:50%;left:0;z-index:3;
+    color:#16202e;opacity:0;
+    transform:translate(-4px,-58%) rotate(-8deg);
+    animation:penMove 2.1s cubic-bezier(.5,.05,.3,1) .4s forwards;
   }
-  @keyframes pen{
-    0%{left:0;opacity:0}
-    8%{opacity:1}
-    92%{opacity:1}
-    100%{left:100%;opacity:0}
+  .splash-pen svg{
+    width:clamp(20px,3.4vw,30px);height:clamp(20px,3.4vw,30px);display:block;
   }
+  @keyframes penMove{
+    0%  {left:0;    opacity:0; transform:translate(-4px,-58%) rotate(-8deg)}
+    8%  {opacity:1}
+    88% {opacity:1}
+    100%{left:100%; opacity:0; transform:translate(-4px,-58%) rotate(-8deg)}
+  }
+
+  /* underline stroke draws itself right after the name */
+  .splash-line{
+    position:absolute;left:4px;right:4px;bottom:-6px;height:2px;
+    background:#16202e;border-radius:2px;
+    transform:scaleX(0);transform-origin:left center;
+    animation:drawLine .8s cubic-bezier(.22,1,.36,1) 2.35s forwards;
+  }
+  @keyframes drawLine{ to{transform:scaleX(1)} }
+
+  /* subheading fades up last */
+  .splash-sub{
+    margin-top:22px;
+    font-family:'Inter',system-ui,sans-serif;
+    font-size:clamp(12px,1.6vw,15px);
+    letter-spacing:.16em;text-transform:uppercase;font-weight:500;
+    color:#8794a6;
+    opacity:0;transform:translateY(8px);
+    animation:subIn .9s cubic-bezier(.22,1,.36,1) 2.75s forwards;
+  }
+  @keyframes subIn{ to{opacity:1;transform:none} }
+
   body.splash-on{overflow:hidden}
   @media (prefers-reduced-motion:reduce){
-    .splash-mask,.splash-pen{animation:none}
     .splash-mask{display:none}
+    .splash-pen{display:none}
+    .splash-line,.splash-sub{animation:none;opacity:1;transform:none}
   }
   html{-webkit-text-size-adjust:100%;scroll-behavior:smooth}
   body{
@@ -525,10 +551,18 @@
 
 <!-- ===== Splash screen (shows on every load) ===== -->
 <div class="splash" id="splash">
-  <div class="splash-name">
-    <span class="splash-text">Muhammad Noman</span>
-    <span class="splash-mask"></span>
-    <span class="splash-pen"></span>
+  <div class="splash-inner">
+    <div class="splash-name">
+      <span class="splash-text">Muhammad Noman</span>
+      <span class="splash-mask"></span>
+      <span class="splash-pen">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">
+          <path d="M12 19l7-7 3 3-7 7-3-3z"/><path d="M18 13l-1.5-7.5L2 2l3.5 14.5L13 18l5-5z"/><path d="M2 2l7.586 7.586"/><circle cx="11" cy="11" r="2"/>
+        </svg>
+      </span>
+      <span class="splash-line"></span>
+    </div>
+    <p class="splash-sub">UI/UX &amp; Product Designer</p>
   </div>
 </div>
 
@@ -864,17 +898,24 @@ Problem Solver"></textarea>
   if(!splash)return;
   document.body.classList.add('splash-on');   // no scrolling while it's up
 
-  const HOLD = 2600;   // 0.35s delay + 2s writing + a short beat to admire it
+  const HOLD = 4000;   // name writes, line draws, subheading fades in — then out
 
+  let dismissed=false;
   function dismiss(){
+    if(dismissed) return;                     // only ever run once
+    dismissed=true;
     splash.classList.add('done');
     document.body.classList.remove('splash-on');
-    setTimeout(()=>splash.remove(), 800);     // clean it out after the fade
+    setTimeout(()=>{ if(splash.parentNode) splash.remove(); }, 800);
   }
+
   // wait for fonts so the signature never flashes in the wrong typeface
-  const fontsReady = document.fonts ? document.fonts.ready : Promise.resolve();
-  fontsReady.then(()=>setTimeout(dismiss, HOLD));
-  // safety: never let the splash get stuck if fonts stall
+  try{
+    const fontsReady = document.fonts ? document.fonts.ready : Promise.resolve();
+    fontsReady.then(()=>setTimeout(dismiss, HOLD)).catch(()=>dismiss());
+  }catch(_){ setTimeout(dismiss, HOLD); }
+
+  // safety: the splash can never get stuck, whatever happens
   setTimeout(dismiss, HOLD + 2500);
 })();
 
