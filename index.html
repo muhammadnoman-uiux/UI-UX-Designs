@@ -520,6 +520,38 @@
   .btn.danger{background:#b4402f;color:#fff;border-color:#b4402f}
   .btn.danger:hover{background:#9d3627}
   .pw-note{font-size:12px;color:var(--ink-faint);margin-top:12px;line-height:1.5}
+
+  /* ---------- visitor stats ---------- */
+  .stat-row{display:flex;gap:10px}
+  .stat{
+    flex:1;background:var(--input-bg);border:1px solid var(--line);border-radius:11px;
+    padding:14px 10px;text-align:center;display:flex;flex-direction:column;gap:3px;
+  }
+  .stat-num{font-family:'Fraunces',serif;font-size:24px;font-weight:600;color:var(--accent);line-height:1.1}
+  .stat-lbl{font-size:11.5px;color:var(--ink-faint);letter-spacing:.03em}
+  .day-count{
+    flex:0 0 auto;min-width:74px;text-align:center;padding:10px 12px;
+    background:var(--accent-soft);border:1px solid var(--line);border-radius:9px;
+    font-weight:600;font-size:14px;color:var(--accent);
+  }
+  /* mini bar chart */
+  .spark{
+    display:flex;align-items:flex-end;gap:4px;height:64px;
+    background:var(--input-bg);border:1px solid var(--line);border-radius:11px;padding:10px;
+  }
+  .spark-bar{
+    flex:1;min-height:3px;border-radius:3px 3px 1px 1px;
+    background:var(--accent);opacity:.75;transition:opacity .15s;position:relative;
+  }
+  .spark-bar:hover{opacity:1}
+  .spark-bar::after{
+    content:attr(data-info);
+    position:absolute;bottom:calc(100% + 6px);left:50%;transform:translateX(-50%);
+    background:var(--ink);color:var(--bg);font-size:11px;white-space:nowrap;
+    padding:4px 7px;border-radius:6px;opacity:0;pointer-events:none;transition:opacity .15s;
+  }
+  .spark-bar:hover::after{opacity:1}
+  .spark-empty{width:100%;display:grid;place-items:center;color:var(--ink-faint);font-size:12.5px}
   .err{color:#b4402f;font-size:12.5px;margin-top:8px;display:none}
   .err.show{display:block}
 
@@ -669,6 +701,7 @@
 <div class="admin-bar">
   <span><span class="dot"></span>Edit mode — you can add, edit, and delete</span>
   <span style="display:flex;gap:8px">
+    <button id="viewsBtn">Visitors</button>
     <button id="themeColorBtn">Theme color</button>
     <button id="exitAdmin">Exit edit mode</button>
   </span>
@@ -820,6 +853,37 @@
 <!-- ===== Live link modal ===== -->
 <!-- ===== Case study modal ===== -->
 <!-- ===== Theme color modal ===== -->
+<!-- ===== Views / analytics modal ===== -->
+<div class="overlay" id="viewsModal">
+  <div class="modal">
+    <h3>Visitors</h3>
+    <p class="sub">How many people have opened your site.</p>
+
+    <div class="stat-row">
+      <div class="stat"><span class="stat-num" id="vTotal">—</span><span class="stat-lbl">All time</span></div>
+      <div class="stat"><span class="stat-num" id="vToday">—</span><span class="stat-lbl">Today</span></div>
+      <div class="stat"><span class="stat-num" id="v7">—</span><span class="stat-lbl">Last 7 days</span></div>
+    </div>
+
+    <div class="field" style="margin-top:20px">
+      <label for="vDate">Check a specific day</label>
+      <div style="display:flex;gap:10px;align-items:center">
+        <input id="vDate" type="date" style="flex:1">
+        <span class="day-count" id="vDayCount">—</span>
+      </div>
+    </div>
+
+    <div class="field">
+      <label>Last 14 days</label>
+      <div class="spark" id="vSpark"></div>
+    </div>
+
+    <div class="modal-actions">
+      <button class="btn primary" id="closeViews">Close</button>
+    </div>
+  </div>
+</div>
+
 <div class="overlay" id="colorModal">
   <div class="modal small">
     <h3>Theme colour</h3>
@@ -1025,7 +1089,7 @@ Problem Solver"></textarea>
 /* ============================================================
    CONFIG — set your password here (keep the quotes)
    ============================================================ */
-const ADMIN_PASSWORD = "8bitthugs";   // <-- apna secret password yahan daalo
+const ADMIN_PASSWORD = "CHANGE_THIS_PASSWORD";   // <-- apna secret password yahan daalo
 
 /* ---- Supabase (cloud storage) ---- */
 const SUPABASE_URL = "https://hzjjebhngdmnniunspkk.supabase.co";
@@ -1889,6 +1953,84 @@ document.getElementById('yr').textContent=new Date().getFullYear();
 // load everything from the cloud (renders once data arrives)
 applyAccent(accent);   // sets accent vars correctly for the current theme
 loadFromCloud();
+
+/* =========================================================
+   VISITOR TRACKING
+   One row per visit, tagged with the day. Counted once per
+   browser session so a reload doesn't inflate the numbers.
+   ========================================================= */
+function todayStr(){
+  const d=new Date();
+  return d.getFullYear()+'-'+String(d.getMonth()+1).padStart(2,'0')+'-'+String(d.getDate()).padStart(2,'0');
+}
+(async function recordVisit(){
+  try{
+    if(sessionStorage.getItem('mn_counted')) return;   // already counted this session
+    sessionStorage.setItem('mn_counted','1');
+    await sb.from('views').insert({day: todayStr()});
+  }catch(e){ /* never let analytics break the site */ }
+})();
+
+/* ---------- visitors panel ---------- */
+const viewsModal=document.getElementById('viewsModal');
+document.getElementById('closeViews').onclick=()=>viewsModal.classList.remove('show');
+
+document.getElementById('viewsBtn').onclick=async()=>{
+  viewsModal.classList.add('show');
+  // reset while loading
+  ['vTotal','vToday','v7'].forEach(id=>document.getElementById(id).textContent='—');
+  document.getElementById('vDayCount').textContent='—';
+  document.getElementById('vSpark').innerHTML='<span class="spark-empty">Loading…</span>';
+
+  try{
+    const {data,error}=await sb.from('views').select('day');
+    if(error)throw error;
+
+    const today=todayStr();
+    const counts={};                                  // day -> visits
+    data.forEach(r=>{ counts[r.day]=(counts[r.day]||0)+1; });
+
+    document.getElementById('vTotal').textContent = data.length.toLocaleString();
+    document.getElementById('vToday').textContent = (counts[today]||0).toLocaleString();
+
+    // last 7 days total
+    let sum7=0;
+    for(let i=0;i<7;i++){
+      const d=new Date(); d.setDate(d.getDate()-i);
+      const k=d.getFullYear()+'-'+String(d.getMonth()+1).padStart(2,'0')+'-'+String(d.getDate()).padStart(2,'0');
+      sum7 += counts[k]||0;
+    }
+    document.getElementById('v7').textContent = sum7.toLocaleString();
+
+    // date picker: default to today
+    const dateInput=document.getElementById('vDate');
+    dateInput.value = today;
+    dateInput.max   = today;
+    const showDay=()=>{
+      const n = counts[dateInput.value] || 0;
+      document.getElementById('vDayCount').textContent = n.toLocaleString();
+    };
+    dateInput.onchange = showDay;
+    showDay();
+
+    // 14-day bar chart
+    const days=[];
+    for(let i=13;i>=0;i--){
+      const d=new Date(); d.setDate(d.getDate()-i);
+      const k=d.getFullYear()+'-'+String(d.getMonth()+1).padStart(2,'0')+'-'+String(d.getDate()).padStart(2,'0');
+      days.push({key:k, n:counts[k]||0, label:d.toLocaleDateString(undefined,{month:'short',day:'numeric'})});
+    }
+    const peak=Math.max(1, ...days.map(d=>d.n));
+    document.getElementById('vSpark').innerHTML = days.map(d=>{
+      const h = Math.round((d.n/peak)*100);
+      return `<div class="spark-bar" style="height:${Math.max(h,4)}%" data-info="${d.label}: ${d.n}"></div>`;
+    }).join('');
+
+  }catch(e){
+    console.error(e);
+    document.getElementById('vSpark').innerHTML='<span class="spark-empty">Could not load stats</span>';
+  }
+};
 
 /* ---------- rotating role words (uses editable list; smooth vertical slide) ---------- */
 let rotTimer=null, rotCleanup=null, rotRun=0;
