@@ -57,11 +57,10 @@
   .head-actions{display:flex;align-items:center;gap:8px}
   .theme-btn{
     width:38px;height:38px;border-radius:10px;border:1px solid var(--glass-border);
-    background:rgba(255,255,255,.25);cursor:pointer;display:grid;place-items:center;
+    background:rgba(var(--accent-rgb),.06);cursor:pointer;display:grid;place-items:center;
     color:var(--ink-soft);transition:.2s;padding:0;flex:0 0 auto;
   }
-  html[data-theme="dark"] .theme-btn{background:rgba(255,255,255,.05)}
-  .theme-btn:hover{color:var(--accent);background:var(--accent-soft)}
+  .theme-btn:hover{color:var(--accent);background:rgba(var(--accent-rgb),.14);border-color:var(--accent)}
   .theme-btn svg{width:18px;height:18px}
   .theme-btn .ico-moon{display:none}
   html[data-theme="dark"] .theme-btn .ico-sun{display:none}
@@ -209,11 +208,14 @@
 
   /* hamburger (hidden on desktop) */
   .menu-btn{
-    display:none;width:40px;height:40px;border-radius:10px;border:1px solid rgba(255,255,255,.6);
-    background:rgba(255,255,255,.4);cursor:pointer;align-items:center;justify-content:center;
+    display:none;width:40px;height:40px;border-radius:10px;
+    border:1px solid var(--glass-border);
+    background:rgba(var(--accent-rgb),.06);
+    cursor:pointer;align-items:center;justify-content:center;
     flex-direction:column;gap:4px;padding:0;transition:.2s;
   }
-  .menu-btn:hover{background:rgba(var(--accent-rgb),.10)}
+  .menu-btn:hover{background:rgba(var(--accent-rgb),.14);border-color:var(--accent)}
+  .menu-btn.open{background:rgba(var(--accent-rgb),.14);border-color:var(--accent)}
   .menu-btn span{width:18px;height:2px;background:var(--ink);border-radius:2px;transition:.3s}
   .menu-btn.open span:nth-child(1){transform:translateY(6px) rotate(45deg)}
   .menu-btn.open span:nth-child(2){opacity:0}
@@ -542,7 +544,7 @@
       background:var(--glass-menu);
       backdrop-filter:blur(24px) saturate(180%);
       -webkit-backdrop-filter:blur(24px) saturate(180%);
-      border:1px solid rgba(255,255,255,.7);
+      border:1px solid var(--glass-border);
       box-shadow:0 12px 34px var(--shadow);
       animation:menuDrop .25s ease;
     }
