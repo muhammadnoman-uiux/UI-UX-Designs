@@ -439,6 +439,36 @@
   .link-row .l-arrow{color:var(--ink-faint);flex:0 0 auto;transition:transform .35s cubic-bezier(.22,1,.36,1), color .3s}
   .link-row .l-arrow svg{width:16px;height:16px}
   .link-row:hover .l-arrow{color:var(--accent);transform:translate(3px,-3px)}
+  /* drag handle — only visible in edit mode */
+  .drag-handle{
+    display:none;flex:0 0 auto;width:26px;height:34px;
+    align-items:center;justify-content:center;
+    color:var(--ink-faint);cursor:grab;touch-action:none;
+    border-radius:7px;transition:.15s;margin-left:-6px;
+  }
+  body.is-admin .drag-handle{display:flex}
+  .drag-handle:hover{color:var(--accent);background:rgba(var(--accent-rgb),.10)}
+  .drag-handle:active{cursor:grabbing}
+  .drag-handle svg{width:15px;height:15px}
+
+  /* the row being dragged */
+  .link-row.dragging{
+    opacity:.92;z-index:20;
+    box-shadow:0 12px 32px var(--shadow);
+    background:var(--surface);
+    border-radius:12px;
+    cursor:grabbing;
+  }
+  .link-row.dragging::before{opacity:0}
+  /* where it will land */
+  .link-row.drop-target{
+    box-shadow:inset 0 3px 0 -1px var(--accent);
+  }
+  .link-row.drop-target-below{
+    box-shadow:inset 0 -3px 0 -1px var(--accent);
+  }
+  body.is-admin .link-row{transition:transform .18s ease, padding-left .35s cubic-bezier(.22,1,.36,1), color .3s}
+
   .link-tools{display:none;gap:6px;flex:0 0 auto}
   body.is-admin .link-tools{display:flex}
   body.is-admin .link-row .l-arrow{display:none}
@@ -1268,8 +1298,8 @@ async function loadFromCloud(){
   try{
     const [p,l,c,s]=await Promise.all([
       sb.from('projects').select('*').order('created_at',{ascending:false}),
-      sb.from('links').select('*').order('created_at',{ascending:true}),
-      sb.from('case_studies').select('*').order('created_at',{ascending:true}),
+      sb.from('links').select('*').order('sort_order',{ascending:true,nullsFirst:false}).order('created_at',{ascending:true}),
+      sb.from('case_studies').select('*').order('sort_order',{ascending:true,nullsFirst:false}).order('created_at',{ascending:true}),
       sb.from('settings').select('*')
     ]);
     if(!p.error && p.data) projects = p.data.map(r=>({id:r.id,title:r.title,link:r.link||'',image_url:r.image_url||''}));
@@ -1413,9 +1443,13 @@ function renderRows(items, container, kind, addLabel){
   items.forEach(l=>{
     const row=document.createElement('div');
     row.className='link-row';
+    row.dataset.id = l.id;
     if(l.url) row.dataset.url=l.url;
     const pretty=(l.url||'').replace(/^https?:\/\//,'').replace(/\/$/,'');
     row.innerHTML=`
+      <div class="drag-handle" title="Drag to reorder">
+        <svg viewBox="0 0 24 24" fill="currentColor"><circle cx="9" cy="6" r="1.6"/><circle cx="15" cy="6" r="1.6"/><circle cx="9" cy="12" r="1.6"/><circle cx="15" cy="12" r="1.6"/><circle cx="9" cy="18" r="1.6"/><circle cx="15" cy="18" r="1.6"/></svg>
+      </div>
       <div class="l-main">
         <h3>${esc(l.name)}</h3><span class="l-url">${esc(pretty)}</span>
       </div>
@@ -1424,9 +1458,12 @@ function renderRows(items, container, kind, addLabel){
         <button class="edit" data-id="${l.id}" title="Edit"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 20h9M16.5 3.5a2.1 2.1 0 0 1 3 3L7 19l-4 1 1-4z"/></svg></button>
         <button class="del" data-id="${l.id}" title="Delete"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M3 6h18M8 6V4h8v2M6 6l1 14h10l1-14"/></svg></button>
       </div>`;
+
     // WHOLE ROW is clickable — opens the site in a new tab
     row.addEventListener('click',e=>{
-      if(e.target.closest('.link-tools')) return;   // ignore edit/delete clicks
+      if(e.target.closest('.link-tools')) return;    // ignore edit/delete
+      if(e.target.closest('.drag-handle')) return;   // ignore the handle
+      if(row.dataset.dragged) { delete row.dataset.dragged; return; }  // was a drag, not a click
       if(row.dataset.url) window.open(row.dataset.url,'_blank','noopener');
     });
     container.appendChild(row);
@@ -1446,6 +1483,8 @@ function renderRows(items, container, kind, addLabel){
     e.stopPropagation();
     askDelete(kind, b.dataset.id);
   });
+
+  enableDrag(container, kind);
 
   // cursor-following gradient wave (eased for smooth flow)
   container.querySelectorAll('.link-row').forEach(row=>{
@@ -1469,6 +1508,94 @@ function renderRows(items, container, kind, addLabel){
     });
     row.addEventListener('mouseleave',()=>{inside=false;});
   });
+}
+
+/* =========================================================
+   DRAG TO REORDER (works with mouse and touch)
+   ========================================================= */
+function enableDrag(container, kind){
+  container.querySelectorAll('.drag-handle').forEach(handle=>{
+    handle.addEventListener('pointerdown', e=>{
+      if(!document.body.classList.contains('is-admin')) return;
+      e.preventDefault(); e.stopPropagation();
+
+      const row  = handle.closest('.link-row');
+      const rows = [...container.querySelectorAll('.link-row')];
+      const startY = e.clientY;
+      const rect = row.getBoundingClientRect();
+      let moved = false;
+      let targetIndex = rows.indexOf(row);
+      const startIndex = targetIndex;
+
+      handle.setPointerCapture(e.pointerId);
+      row.classList.add('dragging');
+
+      const onMove = ev=>{
+        const dy = ev.clientY - startY;
+        if(Math.abs(dy) > 3) moved = true;
+        row.style.transform = `translateY(${dy}px)`;
+
+        // work out which slot we're hovering over
+        const centre = rect.top + rect.height/2 + dy;
+        let idx = 0;
+        rows.forEach((r,i)=>{
+          if(r===row) return;
+          const b = r.getBoundingClientRect();
+          if(centre > b.top + b.height/2) idx = i + (i > startIndex ? 0 : 1);
+        });
+        // clamp
+        targetIndex = Math.max(0, Math.min(rows.length-1, idx));
+
+        rows.forEach(r=>r.classList.remove('drop-target','drop-target-below'));
+        const marker = rows[targetIndex];
+        if(marker && marker!==row){
+          marker.classList.add(targetIndex > startIndex ? 'drop-target-below' : 'drop-target');
+        }
+      };
+
+      const onUp = async ev=>{
+        handle.releasePointerCapture(e.pointerId);
+        window.removeEventListener('pointermove', onMove);
+        window.removeEventListener('pointerup', onUp);
+
+        row.classList.remove('dragging');
+        row.style.transform = '';
+        rows.forEach(r=>r.classList.remove('drop-target','drop-target-below'));
+
+        if(!moved || targetIndex === startIndex) return;
+        row.dataset.dragged = '1';           // stop the click from firing
+
+        // reorder the underlying array
+        const list = kind==='link' ? links : cases;
+        const [item] = list.splice(startIndex, 1);
+        list.splice(targetIndex, 0, item);
+
+        // repaint immediately, then persist
+        kind==='link' ? renderLinks() : renderCases();
+        await saveOrder(kind, list);
+      };
+
+      window.addEventListener('pointermove', onMove);
+      window.addEventListener('pointerup', onUp);
+    });
+  });
+}
+
+async function saveOrder(kind, list){
+  const table = kind==='link' ? 'links' : 'case_studies';
+  try{
+    // renumber and push the new order up
+    const updates = list.map((item,i)=>
+      sb.from(table).update({sort_order: i+1}).eq('id', item.id)
+    );
+    const results = await Promise.all(updates);
+    const bad = results.find(r=>r.error);
+    if(bad) throw bad.error;
+    toast('Order saved ✓');
+  }catch(e){
+    console.error(e);
+    toast('Could not save order: '+(e.message||'unknown error'));
+  }
 }
 
 function renderLinks(){
@@ -1738,7 +1865,7 @@ document.getElementById('saveLink').onclick=async()=>{
       if(error)throw error;
       Object.assign(links.find(x=>String(x.id)===String(editingLinkId)),{name,url});
     }else{
-      const {data,error}=await sb.from('links').insert({name,url}).select().single();
+      const {data,error}=await sb.from('links').insert({name,url,sort_order:links.length+1}).select().single();
       if(error)throw error;
       links.push({id:data.id,name:data.name,url:data.url||''});
     }
@@ -1775,7 +1902,7 @@ document.getElementById('saveCase').onclick=async()=>{
       if(error)throw error;
       Object.assign(cases.find(x=>String(x.id)===String(editingCaseId)),{name,url});
     }else{
-      const {data,error}=await sb.from('case_studies').insert({name,url}).select().single();
+      const {data,error}=await sb.from('case_studies').insert({name,url,sort_order:cases.length+1}).select().single();
       if(error)throw error;
       cases.push({id:data.id,name:data.name,url:data.url||''});
     }
