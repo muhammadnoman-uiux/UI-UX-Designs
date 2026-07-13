@@ -232,12 +232,41 @@
     width:80px;height:80px;border-radius:50%;object-fit:cover;object-position:center top;
     border:1px solid var(--line);margin-bottom:26px;background:var(--img-bg);display:block;
   }
-  .avatar-wrap{position:relative;display:inline-block;margin-bottom:26px}
-  .avatar-wrap .avatar{margin-bottom:0}
+  .avatar-wrap{
+    position:relative;display:inline-block;
+    padding:20px;               /* room for the orbiting rings */
+    margin:-20px 0 6px -20px;   /* pull it back so the photo stays aligned with the text */
+  }
+  .avatar-wrap .avatar{margin-bottom:0;position:relative;z-index:1}
+
+  /* dotted ring that slowly orbits the photo */
+  .avatar-wrap::before{
+    content:"";
+    position:absolute;inset:9px;
+    border-radius:50%;
+    border:2px dashed var(--accent);
+    opacity:.42;
+    animation:ringSpin 18s linear infinite;
+    pointer-events:none;
+  }
+  /* a second, fainter ring drifting the other way for depth */
+  .avatar-wrap::after{
+    content:"";
+    position:absolute;inset:1px;
+    border-radius:50%;
+    border:1px dotted var(--accent);
+    opacity:.22;
+    animation:ringSpin 30s linear infinite reverse;
+    pointer-events:none;
+  }
+  @keyframes ringSpin{ to{transform:rotate(360deg)} }
+  @media (prefers-reduced-motion:reduce){
+    .avatar-wrap::before,.avatar-wrap::after{animation:none}
+  }
   .avatar-edit{
-    position:absolute;inset:0;border-radius:50%;display:none;align-items:center;justify-content:center;
+    position:absolute;inset:20px;border-radius:50%;display:none;align-items:center;justify-content:center;
     background:rgba(22,32,46,.55);color:#fff;cursor:pointer;border:none;padding:0;
-    transition:background .18s;
+    transition:background .18s;z-index:2;
   }
   .avatar-edit svg{width:22px;height:22px}
   body.is-admin .avatar-wrap .avatar-edit{display:flex}
